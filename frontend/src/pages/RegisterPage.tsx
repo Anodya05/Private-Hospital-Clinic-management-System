@@ -10,11 +10,14 @@ const RegisterPage: React.FC = () => {
     name: '',
     email: '',
     password: '',
-    role: 'patient',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    document.title = 'Sign Up';
+  }, []);
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -35,7 +38,7 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await register(form);
+      await register({ ...form, role: 'patient' });
       navigate('/login');
     } catch (err) {
       setError((err as Error).message || 'Unable to register right now.');
@@ -68,6 +71,7 @@ const RegisterPage: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="bg-white/95 backdrop-blur-lg border border-gray-200 rounded-2xl shadow-2xl p-8"
           >
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-6">Sign Up</h2>
             <div className="flex items-center mb-4">
               <Link 
                 to="/"
@@ -129,23 +133,6 @@ const RegisterPage: React.FC = () => {
                 <p className="text-xs text-gray-600 mt-2">Minimum 8 characters required</p>
               </div>
 
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-800 mb-2">Account Type</label>
-                <select
-                  id="role"
-                  name="role"
-                  value={form.role}
-                  onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition shadow-sm"
-                >
-                  <option value="patient" className="bg-white">Patient</option>
-                  <option value="doctor" className="bg-white">Doctor</option>
-                  <option value="admin" className="bg-white">Admin</option>
-                  <option value="pharmacist" className="bg-white">Pharmacist</option>
-                  <option value="receptionist" className="bg-white">Receptionist</option>
-                </select>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}
@@ -162,7 +149,7 @@ const RegisterPage: React.FC = () => {
               to="/login" 
               className="inline-block bg-transparent border-2 border-white text-white font-bold py-2 px-6 rounded-full hover:bg-white hover:text-gray-800 transition duration-300"
             >
-              Sign In
+              Login
             </Link>
           </div>
         </div>

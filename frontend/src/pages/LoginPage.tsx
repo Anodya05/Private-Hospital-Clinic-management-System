@@ -13,6 +13,10 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
+  useEffect(() => {
+    document.title = 'Login';
+  }, []);
+
   React.useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
@@ -38,10 +42,6 @@ const LoginPage: React.FC = () => {
       console.log('Making login API call...');
       const response = await login(loginId, password);
       console.log('Login response:', response);
-      
-      if (!response.token) {
-        throw new Error('No token received from server');
-      }
       
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('authUser', JSON.stringify(response.user));
@@ -105,6 +105,7 @@ const LoginPage: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="bg-white/95 backdrop-blur-lg border border-gray-200 rounded-2xl shadow-2xl p-8 space-y-6"
           >
+            <h2 className="text-2xl font-extrabold text-gray-900">Login</h2>
             <div className="flex items-center mb-4">
               <Link 
                 to="/"
