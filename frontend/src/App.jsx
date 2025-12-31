@@ -1,8 +1,12 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+
+// --- Page Imports ---
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
+
+// --- Home Page Components ---
 import HeroSection from './components/HomePage/HeroSection';
 import QuickActionsBar from './components/HomePage/QuickActionsBar';
 import FeaturesGrid from './components/HomePage/FeaturesGrid';
@@ -11,17 +15,22 @@ import WhyChooseUs from './components/HomePage/WhyChooseUs';
 import TestimonialsSection from './components/HomePage/TestimonialsSection';
 import TelemedicinePromo from './components/HomePage/TelemedicinePromo';
 import Footer from './components/HomePage/Footer';
-import AdminDashboard from './pages/dashboard/AdminDashboard';
+
+// --- Dashboard Imports ---
+import AdminDashboard from './pages/dashboard/AdminDashboard'; // <--- This connects to your Admin Page
 import DoctorDashboard from './pages/dashboard/DoctorDashboard';
 import PatientDashboard from './pages/dashboard/PatientDashboard';
 import PharmacistDashboard from './pages/dashboard/PharmacistDashboard';
 import ReceptionistDashboard from './pages/dashboard/ReceptionistDashboard';
+
+// --- Pharmacy Sub-Pages ---
 import PrescriptionProcessingView from './pages/pharmacy/PrescriptionProcessingView';
 import InventoryManagement from './pages/pharmacy/InventoryManagement';
 import SupplierManagement from './pages/pharmacy/SupplierManagement';
 import DrugPurchaseManagement from './pages/pharmacy/DrugPurchaseManagement';
 
 function App() {
+  // 1. Protection Wrapper: Checks if user is logged in
   const RequireAuth = ({ children }) => {
     const isAuthenticated = !!localStorage.getItem('authToken');
     return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -58,10 +67,44 @@ function App() {
 
   return (
     <Routes>
+      {/* Public Routes */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
+      {/* --- ADMIN ROUTE (The one you asked for) --- */}
+      <Route
+        path="/admin"
+        element={(
+          <RequireAuth>
+            <AdminDashboard />
+          </RequireAuth>
+        )}
+      />
+
+      {/* Doctor Route */}
+      <Route
+        path="/doctor"
+        element={(
+          <RequireAuth>
+            <DoctorDashboard />
+          </RequireAuth>
+        )}
+      />
+
+      {/* Patient Routes */}
+      <Route
+        path="/patient"
+        element={(
+          <RequireAuth>
+
+            <RequireRole role="doctor">
+              <DoctorDashboard />
+            </RequireRole>
+
+          </RequireAuth>
+        )}
+      />
       <Route
         path="/portal"
         element={(
@@ -71,32 +114,7 @@ function App() {
         )}
       />
 
-      <Route
-        path="/admin"
-        element={(
-          <RequireAuth>
-            <AdminDashboard />
-          </RequireAuth>
-        )}
-      />
-      <Route
-        path="/doctor"
-        element={(
-          <RequireAuth>
-            <RequireRole role="doctor">
-              <DoctorDashboard />
-            </RequireRole>
-          </RequireAuth>
-        )}
-      />
-      <Route
-        path="/patient"
-        element={(
-          <RequireAuth>
-            <PatientDashboard />
-          </RequireAuth>
-        )}
-      />
+      {/* Receptionist Route */}
       <Route
         path="/receptionist"
         element={(
@@ -106,6 +124,7 @@ function App() {
         )}
       />
 
+      {/* Pharmacist Routes */}
       <Route
         path="/pharmacist"
         element={(
@@ -147,6 +166,7 @@ function App() {
         )}
       />
 
+      {/* Catch-all: Redirect unknown links to Home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
