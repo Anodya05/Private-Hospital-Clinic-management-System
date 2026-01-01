@@ -58,6 +58,7 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->group(function () {
 // Public clinic endpoints
 Route::get('clinics', [ClinicController::class, 'index']);
 Route::get('clinics/{id}/doctors', [ClinicController::class, 'doctors']);
+Route::get('clinics/{id}/slots', [ClinicController::class, 'slots']);
 
 // Patient Portal Routes (Patient only)
 Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(function () {

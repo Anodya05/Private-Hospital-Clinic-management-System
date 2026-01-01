@@ -46,6 +46,43 @@ class PatientAppointmentController extends Controller
             }
         }
 
+        // If clinic & date & time provided, ensure the slot is available.
+        if (! empty($validated['clinic_id']) && ! empty($validated['appointment_date']) && ! empty($validated['appointment_time'])) {
+            $clinic = \App\Models\Clinic::find($validated['clinic_id']);
+            if (! $clinic) {
+                return response()->json(['message' => 'Clinic not found'], 404);
+            }
+
+            // If a doctor is specified: ensure doctor is free at that date/time
+            if (! empty($validated['doctor_id'])) {
+                $exists = \App\Models\Appointment::query()
+                    ->where('doctor_id', $validated['doctor_id'])
+                    ->whereDate('appointment_date', $validated['appointment_date'])
+                    ->where('appointment_time', $validated['appointment_time'])
+                    ->exists();
+
+                if ($exists) {
+                    return response()->json(['message' => 'Selected doctor is not available at the chosen time.'], 422);
+                }
+            } else {
+                // No doctor assigned: check clinic-wide availability (at least one doctor free)
+                $totalDoctors = \App\Models\User::query()
+                    ->where('clinic_id', $validated['clinic_id'])
+                    ->whereHas('roles', fn($q) => $q->where('name', 'doctor'))
+                    ->count();
+
+                $occupiedCount = \App\Models\Appointment::query()
+                    ->where('clinic_id', $validated['clinic_id'])
+                    ->whereDate('appointment_date', $validated['appointment_date'])
+                    ->where('appointment_time', $validated['appointment_time'])
+                    ->count();
+
+                if ($occupiedCount >= $totalDoctors) {
+                    return response()->json(['message' => 'No doctors available in this clinic at the chosen time.'], 422);
+                }
+            }
+        }
+
         $appointment = Appointment::create([
             'patient_id' => $user->id,
             'doctor_id' => $validated['doctor_id'] ?? null,
