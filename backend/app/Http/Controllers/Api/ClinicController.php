@@ -13,6 +13,31 @@ class ClinicController extends Controller
     {
         $clinics = Clinic::query()->orderBy('name')->get();
 
+        // If no clinics exist (fresh install), seed a sensible default set so the UI has options
+        if ($clinics->isEmpty()) {
+            $default = [
+                'OPD',
+                'Pediatrics',
+                'Obstetrics & Gynecology',
+                'Dental Clinic',
+                'Cardiology',
+                'Orthopedics',
+                'Dermatology',
+                'Ophthalmology',
+            ];
+
+            foreach ($default as $name) {
+                Clinic::updateOrCreate([
+                    'name' => $name,
+                ], [
+                    'department_type' => strtolower(preg_replace('/[^a-z0-9]+/i', '_', $name)),
+                    'location' => null,
+                ]);
+            }
+
+            $clinics = Clinic::query()->orderBy('name')->get();
+        }
+
         return response()->json(['data' => $clinics]);
     }
 
