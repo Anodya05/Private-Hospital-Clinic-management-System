@@ -30,12 +30,21 @@ class PatientAppointmentController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
+            'clinic_id' => ['nullable', 'integer', 'exists:clinics,id'],
             'doctor_id' => ['nullable', 'integer', 'exists:users,id'],
             'appointment_date' => ['required', 'date'],
             'appointment_time' => ['required'],
             'type' => ['nullable', Rule::in(['in_person', 'telemedicine'])],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // If both clinic and doctor are provided, verify the doctor belongs to the clinic
+        if (! empty($validated['clinic_id']) && ! empty($validated['doctor_id'])) {
+            $doctor = \App\Models\User::find($validated['doctor_id']);
+            if (! $doctor || (int) $doctor->clinic_id !== (int) $validated['clinic_id']) {
+                return response()->json(['message' => 'Selected doctor does not belong to the chosen clinic.'], 422);
+            }
+        }
 
         $appointment = Appointment::create([
             'patient_id' => $user->id,
@@ -71,6 +80,7 @@ class PatientAppointmentController extends Controller
             ->findOrFail($id);
 
         $validated = $request->validate([
+            'clinic_id' => ['nullable', 'integer', 'exists:clinics,id'],
             'doctor_id' => ['nullable', 'integer', 'exists:users,id'],
             'appointment_date' => ['sometimes', 'date'],
             'appointment_time' => ['sometimes'],
@@ -78,6 +88,13 @@ class PatientAppointmentController extends Controller
             'status' => ['sometimes', Rule::in(['scheduled', 'cancelled'])],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        if (! empty($validated['clinic_id']) && ! empty($validated['doctor_id'])) {
+            $doctor = \App\Models\User::find($validated['doctor_id']);
+            if (! $doctor || (int) $doctor->clinic_id !== (int) $validated['clinic_id']) {
+                return response()->json(['message' => 'Selected doctor does not belong to the chosen clinic.'], 422);
+            }
+        }
 
         $appointment->update($validated);
 

@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\DoctorDiagnosisController;
 use App\Http\Controllers\Api\DoctorPrescriptionController;
 use App\Http\Controllers\Api\DoctorLabController;
 use App\Http\Controllers\Api\DoctorReferralController;
+use App\Http\Controllers\Api\ClinicController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
@@ -53,6 +54,10 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->group(function () {
     Route::apiResource('drug-purchases', DrugPurchaseController::class);
     Route::post('drug-purchases/{id}/receive', [DrugPurchaseController::class, 'receive']);
 });
+
+// Public clinic endpoints
+Route::get('clinics', [ClinicController::class, 'index']);
+Route::get('clinics/{id}/doctors', [ClinicController::class, 'doctors']);
 
 // Patient Portal Routes (Patient only)
 Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(function () {
