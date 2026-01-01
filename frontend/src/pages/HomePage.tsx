@@ -1,17 +1,27 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import HeroSection from '../components/HomePage/HeroSection';
+import FeaturesGrid from '../components/HomePage/FeaturesGrid';
+import ServicesSection from '../components/HomePage/ServicesSection';
+import WhyChooseUs from '../components/HomePage/WhyChooseUs';
+import TelemedicinePromo from '../components/HomePage/TelemedicinePromo';
+import TestimonialsSection from '../components/HomePage/TestimonialsSection';
+import QuickActionsBar from '../components/HomePage/QuickActionsBar';
+import Footer from '../components/HomePage/Footer';
 
 const HomePage: React.FC = () => {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6">
-      <h1 className="text-4xl font-bold mb-4">Welcome to the Clinic Portal</h1>
-      <p className="mb-6 text-center max-w-xl">Access appointments, prescriptions, and your medical records.</p>
-      <div className="space-x-4">
-        <Link to="/login" className="px-4 py-2 bg-teal-600 text-white rounded">Login</Link>
-        <Link to="/register" className="px-4 py-2 border border-teal-600 text-teal-600 rounded">Register</Link>
-      </div>
-    </main>
+    <div>
+      <HeroSection />
+      <FeaturesGrid />
+      <ServicesSection />
+      <WhyChooseUs />
+      <TelemedicinePromo />
+      <QuickActionsBar />
+      <TestimonialsSection />
+      <Footer />
+    </div>
   );
 };
 
 export default HomePage;
+
