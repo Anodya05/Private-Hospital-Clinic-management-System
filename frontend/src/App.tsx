@@ -69,6 +69,7 @@ const App: React.FC = () => (
   <Routes>
     {/* Public Routes */}
     <Route path="/" element={<Home />} />
+    <Route path="/home" element={<Home />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
 
@@ -95,8 +96,8 @@ const App: React.FC = () => (
       path="/patient"
       element={(
         <RequireAuth>
-          <RequireRole role="doctor">
-            <DoctorDashboard />
+          <RequireRole role="patient">
+            <PatientDashboard />
           </RequireRole>
         </RequireAuth>
       )}
@@ -170,4 +171,3 @@ const App: React.FC = () => (
   </Routes>
 );
 
-export default App;
