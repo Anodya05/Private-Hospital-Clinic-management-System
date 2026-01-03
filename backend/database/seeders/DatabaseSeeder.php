@@ -7,7 +7,6 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
-use Database\Seeders\ClinicsTableSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -124,7 +123,7 @@ class DatabaseSeeder extends Seeder
 
         $receptionist->syncRoles(['receptionist']);
 
-        // Seed clinics
-        $this->call(ClinicsTableSeeder::class);
+        // Seed default clinics
+        $this->call([\Database\Seeders\ClinicSeeder::class]);
     }
 }

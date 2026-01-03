@@ -51,6 +51,7 @@ const PatientDashboard: React.FC = () => {
 
   const [profileData, setProfileData] = useState<PatientProfileResponse | null>(null);
   const [appointments, setAppointments] = useState<PatientAppointment[]>([]);
+  const [clinics, setClinics] = useState<{ id: number; name: string }[]>([]);
 
   const [teleconsultationsLoaded, setTeleconsultationsLoaded] = useState(false);
   const [teleconsultationsLoading, setTeleconsultationsLoading] = useState(false);
@@ -80,12 +81,6 @@ const PatientDashboard: React.FC = () => {
   const [prescriptions, setPrescriptions] = useState<PatientPrescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<PatientPrescription | null>(null);
   const [prescriptionDetailsLoading, setPrescriptionDetailsLoading] = useState(false);
-
-  // Clinics & doctors for booking dropdowns
-  const [clinics, setClinics] = useState<Array<{id: number; name: string;}>>([]);
-  const [clinicLoading, setClinicLoading] = useState(false);
-  const [modalDoctors, setModalDoctors] = useState<Array<{id: number; name: string;}>>([]);
-  const [modalDoctorsLoading, setModalDoctorsLoading] = useState(false);
 
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -155,18 +150,6 @@ const PatientDashboard: React.FC = () => {
         // Non-blocking on initial load
       } finally {
         setNotificationsLoading(false);
-      }
-
-      // Load clinics for booking dropdowns (non-blocking)
-      try {
-        setClinicLoading(true);
-        const clinicsResp = await fetch('/api/clinics');
-        const clinicsJson = await clinicsResp.json();
-        setClinics(Array.isArray(clinicsJson.data) ? clinicsJson.data : []);
-      } catch (e: any) {
-        // ignore
-      } finally {
-        setClinicLoading(false);
       }
     };
  
@@ -336,7 +319,16 @@ const PatientDashboard: React.FC = () => {
       type: 'in_person',
       reason: '',
     });
-    setModalDoctors([]);
+    // Load clinics so patient can choose clinic (default OPD is used server-side if left blank)
+    (async () => {
+      try {
+        const resp = await fetch('/api/clinics');
+        const json = await resp.json();
+        setClinics(Array.isArray(json.data) ? json.data : []);
+      } catch (e) {
+        // non-blocking
+      }
+    })();
     setAppointmentModalOpen(true);
   };
 
@@ -350,23 +342,16 @@ const PatientDashboard: React.FC = () => {
       type: appt.type || 'in_person',
       reason: appt.reason || '',
     });
-
-    // If appointment has clinic, fetch doctors for that clinic so doctor select populates
-    if (appt.clinic_id) {
-      (async () => {
-        setModalDoctorsLoading(true);
-        try {
-          const resp = await fetch(`/api/clinics/${appt.clinic_id}/doctors`);
-          const json = await resp.json();
-          setModalDoctors(Array.isArray(json.data) ? json.data : []);
-        } catch (e: any) {
-        } finally {
-          setModalDoctorsLoading(false);
-        }
-      })();
-    } else {
-      setModalDoctors([]);
-    }
+    // When editing, load clinics so the select is populated
+    (async () => {
+      try {
+        const resp = await fetch('/api/clinics');
+        const json = await resp.json();
+        setClinics(Array.isArray(json.data) ? json.data : []);
+      } catch (e) {
+        // non-blocking
+      }
+    })();
 
     setAppointmentModalOpen(true);
   };
@@ -384,8 +369,10 @@ const PatientDashboard: React.FC = () => {
 
     try {
       const doctorIdValue = appointmentForm.doctor_id.trim() === '' ? null : Number(appointmentForm.doctor_id);
+      const clinicIdValue = appointmentForm.clinic_id.trim() === '' ? null : Number(appointmentForm.clinic_id);
+
       const base: CreateAppointmentPayload = {
-        clinic_id: appointmentForm.clinic_id.trim() === '' ? null : Number(appointmentForm.clinic_id),
+        clinic_id: clinicIdValue,
         doctor_id: Number.isFinite(doctorIdValue as any) ? (doctorIdValue as number) : null,
         appointment_date: appointmentForm.appointment_date,
         appointment_time: appointmentForm.appointment_time,
@@ -395,6 +382,7 @@ const PatientDashboard: React.FC = () => {
 
       if (editingAppointment) {
         const payload: UpdateAppointmentPayload = {
+          clinic_id: base.clinic_id ?? null,
           doctor_id: base.doctor_id ?? null,
           appointment_date: base.appointment_date,
           appointment_time: base.appointment_time,
@@ -1640,61 +1628,27 @@ const PatientDashboard: React.FC = () => {
             <form onSubmit={submitAppointment} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Clinic *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Clinic (optional)</label>
                   <select
                     value={appointmentForm.clinic_id}
-                    onChange={(e) => {
-                      const id = e.target.value || '';
-                      setAppointmentForm((p) => ({ ...p, clinic_id: id, doctor_id: '' }));
-
-                      if (id) {
-                        (async () => {
-                          setModalDoctorsLoading(true);
-                          try {
-                            const resp = await fetch(`/api/clinics/${id}/doctors`);
-                            const json = await resp.json();
-                            setModalDoctors(Array.isArray(json.data) ? json.data : []);
-                          } catch (e: any) {
-                            setModalDoctors([]);
-                          } finally {
-                            setModalDoctorsLoading(false);
-                          }
-                        })();
-                      } else {
-                        setModalDoctors([]);
-                      }
-                    }}
-                    required
+                    onChange={(e) => setAppointmentForm((p) => ({ ...p, clinic_id: e.target.value }))}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="">Select a clinic</option>
-                    {clinicLoading ? (
-                      <option disabled>Loading clinics…</option>
-                    ) : (
-                      clinics.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))
-                    )}
+                    <option value="">Default (OPD)</option>
+                    {clinics.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor (optional)</label>
-                  <select
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor ID (optional)</label>
+                  <input
+                    type="number"
                     value={appointmentForm.doctor_id}
                     onChange={(e) => setAppointmentForm((p) => ({ ...p, doctor_id: e.target.value }))}
-                    disabled={!appointmentForm.clinic_id || modalDoctorsLoading}
                     className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="">Any available doctor</option>
-                    {modalDoctorsLoading ? (
-                      <option disabled>Loading doctors…</option>
-                    ) : (
-                      modalDoctors.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))
-                    )}
-                  </select>
+                    placeholder="e.g. 12"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>

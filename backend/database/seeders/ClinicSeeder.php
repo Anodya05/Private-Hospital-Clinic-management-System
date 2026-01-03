@@ -6,13 +6,10 @@ use App\Models\Clinic;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class ClinicsTableSeeder extends Seeder
+class ClinicSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $clinics = [
@@ -29,7 +26,7 @@ class ClinicsTableSeeder extends Seeder
         foreach ($clinics as $name) {
             Clinic::updateOrCreate(
                 ['name' => $name],
-                ['department_type' => strtolower(preg_replace('/[^a-z0-9]+/i', '_', $name)), 'location' => null]
+                ['name' => $name]
             );
         }
     }

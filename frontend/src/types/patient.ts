@@ -66,23 +66,6 @@ export interface PatientAppointmentsResponse {
   data: PatientAppointment[];
 }
 
-export interface CreateAppointmentPayload {
-  doctor_id?: number | null;
-  appointment_date: string;
-  appointment_time: string;
-  type?: AppointmentType;
-  reason?: string | null;
-}
-
-export interface UpdateAppointmentPayload {
-  doctor_id?: number | null;
-  appointment_date?: string;
-  appointment_time?: string;
-  type?: AppointmentType;
-  status?: 'scheduled' | 'cancelled';
-  reason?: string | null;
-}
-
 export type TeleconsultationStatus = 'scheduled' | 'completed' | 'cancelled';
 
 export interface PatientTeleconsultation {

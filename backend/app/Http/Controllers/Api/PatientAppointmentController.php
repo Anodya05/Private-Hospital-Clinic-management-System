@@ -38,22 +38,40 @@ class PatientAppointmentController extends Controller
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // If both clinic and doctor are provided, verify the doctor belongs to the clinic
-        if (! empty($validated['clinic_id']) && ! empty($validated['doctor_id'])) {
+        // Determine effective clinic
+        $clinicId = $validated['clinic_id'] ?? null;
+
+        // If doctor provided and clinic not provided, prefer doctor's clinic
+        if (empty($clinicId) && ! empty($validated['doctor_id'])) {
+            $doc = \App\Models\User::find($validated['doctor_id']);
+            if ($doc && ! empty($doc->clinic_id)) {
+                $clinicId = $doc->clinic_id;
+            }
+        }
+
+        // If still not found, fallback to OPD clinic (case-insensitive name match)
+        if (empty($clinicId)) {
+            $opd = \App\Models\Clinic::query()
+                ->whereRaw('LOWER(name) = ?', [strtolower('OPD')])
+                ->first();
+            if ($opd) {
+                $clinicId = $opd->id;
+            }
+        }
+
+        if (! empty($clinicId) && ! empty($validated['doctor_id'])) {
             $doctor = \App\Models\User::find($validated['doctor_id']);
-            if (! $doctor || (int) $doctor->clinic_id !== (int) $validated['clinic_id']) {
+            if (! $doctor || (int) $doctor->clinic_id !== (int) $clinicId) {
                 return response()->json(['message' => 'Selected doctor does not belong to the chosen clinic.'], 422);
             }
         }
 
-        // If clinic & date & time provided, ensure the slot is available.
-        if (! empty($validated['clinic_id']) && ! empty($validated['appointment_date']) && ! empty($validated['appointment_time'])) {
-            $clinic = \App\Models\Clinic::find($validated['clinic_id']);
+        if (! empty($clinicId) && ! empty($validated['appointment_date']) && ! empty($validated['appointment_time'])) {
+            $clinic = \App\Models\Clinic::find($clinicId);
             if (! $clinic) {
                 return response()->json(['message' => 'Clinic not found'], 404);
             }
 
-            // If a doctor is specified: ensure doctor is free at that date/time
             if (! empty($validated['doctor_id'])) {
                 $exists = \App\Models\Appointment::query()
                     ->where('doctor_id', $validated['doctor_id'])
@@ -65,14 +83,13 @@ class PatientAppointmentController extends Controller
                     return response()->json(['message' => 'Selected doctor is not available at the chosen time.'], 422);
                 }
             } else {
-                // No doctor assigned: check clinic-wide availability (at least one doctor free)
                 $totalDoctors = \App\Models\User::query()
-                    ->where('clinic_id', $validated['clinic_id'])
+                    ->where('clinic_id', $clinicId)
                     ->whereHas('roles', fn($q) => $q->where('name', 'doctor'))
                     ->count();
 
                 $occupiedCount = \App\Models\Appointment::query()
-                    ->where('clinic_id', $validated['clinic_id'])
+                    ->where('clinic_id', $clinicId)
                     ->whereDate('appointment_date', $validated['appointment_date'])
                     ->where('appointment_time', $validated['appointment_time'])
                     ->count();
@@ -85,6 +102,7 @@ class PatientAppointmentController extends Controller
 
         $appointment = Appointment::create([
             'patient_id' => $user->id,
+            'clinic_id' => $clinicId ?? null,
             'doctor_id' => $validated['doctor_id'] ?? null,
             'appointment_date' => $validated['appointment_date'],
             'appointment_time' => $validated['appointment_time'],
