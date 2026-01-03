@@ -34,7 +34,6 @@ import type {
   Referral,
   UpdateDiagnosisPayload,
   CreatePatientPayload,
-  Patient,
 } from '../../types/doctor';
 import type { AuthUser } from '../../types/auth';
 

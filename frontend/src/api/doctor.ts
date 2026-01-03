@@ -72,6 +72,11 @@ export const doctorApi = {
       return response.data;
     },
 
+    update: async (id: number, payload: UpdateVitalSignPayload): Promise<VitalSign> => {
+      const response = await http.put<VitalSign>(API_ENDPOINTS.DOCTOR_VITAL_UPDATE(String(id)), payload);
+      return response.data;
+    },
+
     delete: async (id: number): Promise<{ message: string }> => {
       const response = await http.delete<{ message: string }>(API_ENDPOINTS.DOCTOR_VITAL_UPDATE(String(id)));
       return response.data;
@@ -81,17 +86,6 @@ export const doctorApi = {
   patients: {
     create: async (payload: any): Promise<any> => {
       const response = await http.post<any>(API_ENDPOINTS.DOCTOR_PATIENTS, payload);
-      return response.data;
-    },
-  },
-
-    update: async (id: number, payload: UpdateVitalSignPayload): Promise<VitalSign> => {
-      const response = await http.put<VitalSign>(API_ENDPOINTS.DOCTOR_VITAL_UPDATE(String(id)), payload);
-      return response.data;
-    },
-
-    delete: async (id: number): Promise<{ message: string }> => {
-      const response = await http.delete<{ message: string }>(API_ENDPOINTS.DOCTOR_VITAL_UPDATE(String(id)));
       return response.data;
     },
   },
