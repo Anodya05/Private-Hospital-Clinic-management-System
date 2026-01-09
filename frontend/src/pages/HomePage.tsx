@@ -1,7 +1,7 @@
 import React from 'react';
 import HeroSection from '../components/HomePage/HeroSection';
 import FeaturesGrid from '../components/HomePage/FeaturesGrid';
-import ServicesSection from '../components/HomePage/ServicesSection';
+import ServicesCards from '../components/HomePage/ServicesCards';
 import WhyChooseUs from '../components/HomePage/WhyChooseUs';
 import TelemedicinePromo from '../components/HomePage/TelemedicinePromo';
 import TestimonialsSection from '../components/HomePage/TestimonialsSection';
@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
     <div>
       <HeroSection />
       <FeaturesGrid />
-      <ServicesSection />
+      <ServicesCards />
       <WhyChooseUs />
       <TelemedicinePromo />
       <QuickActionsBar />
