@@ -1,77 +1,84 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-
-interface SidebarItem {
-  name: string;
-  icon: string;
-  path: string;
-  badge?: number;
-}
+// FIX: Removed 'Link' from this line
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  Users, 
+  Calendar, 
+  Building2, 
+  Pill, 
+  CreditCard, 
+  BarChart3, 
+  Settings, 
+  LogOut 
+} from 'lucide-react';
 
 const AdminSidebar: React.FC = () => {
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const menuItems: SidebarItem[] = [
-    { name: 'Dashboard', icon: '📊', path: '/admin' },
-    { name: 'User Management', icon: '👥', path: '/admin/users' },
-    { name: 'Appointments', icon: '📅', path: '/admin/appointments' },
-    { name: 'Departments', icon: '🏥', path: '/admin/departments' },
-    { name: 'Pharmacy', icon: '💊', path: '/admin/pharmacy' },
-    { name: 'Billing', icon: '💰', path: '/admin/billing' },
-    { name: 'Reports', icon: '📈', path: '/admin/reports' },
-    { name: 'Settings', icon: '⚙️', path: '/admin/settings' },
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    navigate('/login');
+  };
+
+  const isActive = (path: string) => {
+    if (path === '/admin') {
+      return location.pathname === '/admin';
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  const menuItems = [
+    { title: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/admin' },
+    { title: 'User Management', icon: <Users size={20} />, path: '/admin/users' },
+    { title: 'Appointments', icon: <Calendar size={20} />, path: '/admin/appointments' }, 
+    { title: 'Departments', icon: <Building2 size={20} />, path: '/admin/departments' }, 
+    { title: 'Pharmacy', icon: <Pill size={20} />, path: '/admin/inventory' },
+    { title: 'Billing', icon: <CreditCard size={20} />, path: '/admin/billing' }, 
+    { title: 'Reports', icon: <BarChart3 size={20} />, path: '/admin/reports' },
+    { title: 'Settings', icon: <Settings size={20} />, path: '/admin/settings' },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
-
   return (
-    <div className="w-64 bg-white shadow-lg fixed left-0 top-0 h-screen z-30">
-      <div className="p-6 border-b">
-        <h2 className="text-xl font-bold text-gray-800">Admin Portal</h2>
-        <p className="text-sm text-gray-600">Hospital Management</p>
+    <div className="h-full flex flex-col bg-white border-r border-gray-100">
+      {/* Logo Area */}
+      <div className="h-16 flex items-center px-8 border-b border-gray-100">
+        <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center mr-3 shadow-sm">
+          <span className="text-white font-bold text-lg">H</span>
+        </div>
+        <span className="text-xl font-bold text-gray-800">Hospital<span className="text-teal-600">Admin</span></span>
       </div>
-      
-      <nav className="p-4" style={{ height: 'calc(100vh - 180px)', overflowY: 'auto' }}>
-        <ul className="space-y-2">
-          {menuItems.map((item) => (
-            <li key={item.path}>
-              <button
-                onClick={() => navigate(item.path)}
-                className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 flex items-center justify-between ${
-                  isActive(item.path)
-                    ? 'bg-teal-500 text-white'
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                <div className="flex items-center">
-                  <span className="mr-3 text-lg">{item.icon}</span>
-                  <span className="font-medium">{item.name}</span>
-                </div>
-                {item.badge && (
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    isActive(item.path) ? 'bg-white text-teal-500' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
+
+      {/* Navigation Links */}
+      <nav className="flex-1 py-6 space-y-1 overflow-y-auto">
+        {menuItems.map((item) => (
+          <button
+            key={item.path}
+            onClick={() => navigate(item.path)}
+            className={`w-full flex items-center px-8 py-3 transition-all duration-200 group ${
+              isActive(item.path)
+                ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-600'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
+            <span className={`mr-3 transition-colors ${isActive(item.path) ? 'text-teal-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
+              {item.icon}
+            </span>
+            <span className="font-medium">{item.title}</span>
+          </button>
+        ))}
       </nav>
 
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white">
-        <button
-          onClick={() => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('authUser');
-            navigate('/login');
-          }}
-          className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 transition-colors duration-200 flex items-center"
+      {/* Logout Button */}
+      <div className="p-4 border-t border-gray-100">
+        <button 
+          onClick={handleLogout}
+          className="flex items-center w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
         >
-          <span className="mr-3">🚪</span>
-          <span className="font-medium">Logout</span>
+          <LogOut size={20} className="mr-3 group-hover:scale-110 transition-transform" />
+          <span className="font-medium">Sign Out</span>
         </button>
       </div>
     </div>

@@ -1,9 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import axios from 'axios';
+// FIX: Removed unused 'LineChart' and 'Line'
+import { 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area 
+} from 'recharts';
+import { 
+  Users, Stethoscope, Building2, UserCog, Activity, 
+  ArrowUpRight, Bell, Search 
+} from 'lucide-react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
 
-// 1. Define the shape of the data we expect from Laravel
+// 1. Define Data Interfaces
 interface DashboardStats {
   total_users: number;
   total_doctors: number;
@@ -12,291 +20,209 @@ interface DashboardStats {
   total_departments: number;
 }
 
-interface QuickAction {
-  title: string;
-  description: string;
-  icon: string;
-  color: string;
-  path: string;
+interface ChartDataPoint {
+  name: string;
+  patients: number;
+}
+
+interface ApiResponse {
+  counts: DashboardStats;
+  chart_data: ChartDataPoint[];
 }
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-
-  // 2. State to hold the real data (initially 0)
+  const location = useLocation();
+  const isMainPage = location.pathname === '/admin' || location.pathname === '/admin/';
+  
+  // State for Counts
   const [stats, setStats] = useState<DashboardStats>({
-    total_users: 0,
-    total_doctors: 0,
-    total_patients: 0,
-    total_staff: 0,
-    total_departments: 0,
+    total_users: 0, total_doctors: 0, total_patients: 0, total_staff: 0, total_departments: 0,
   });
 
+  // State for Chart
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  
   const [loading, setLoading] = useState(true);
 
-  // 3. Fetch real data on component load
+  // Date Helper
+  const today = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+  });
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const token = localStorage.getItem('authToken'); 
-        
-        if (!token) {
-             console.error("No auth token found");
-             return;
+    if (isMainPage) {
+      const fetchStats = async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          if (!token) return;
+
+          const response = await axios.get<ApiResponse>('http://localhost:8000/api/admin/stats', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          setStats(response.data.counts);
+          setChartData(response.data.chart_data);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error loading stats:", error);
+          setLoading(false);
         }
-
-        const response = await axios.get<DashboardStats>('http://localhost:8000/api/admin/stats', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        
-        setStats(response.data);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error loading stats:", error);
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
-
-  const quickActions: QuickAction[] = [
-    {
-      title: 'User Management',
-      description: 'Manage doctors, staff, and patient accounts',
-      icon: '👥',
-      color: 'bg-blue-500',
-      path: '/admin/users'
-    },
-    {
-      title: 'Appointments',
-      description: 'View and manage all appointments',
-      icon: '📅',
-      color: 'bg-green-500',
-      path: '/admin/appointments'
-    },
-    {
-      title: 'Departments',
-      description: 'Manage hospital departments',
-      icon: '🏥',
-      color: 'bg-purple-500',
-      path: '/admin/departments'
-    },
-    {
-      title: 'Pharmacy',
-      description: 'Manage pharmacy inventory and orders',
-      icon: '💊',
-      color: 'bg-orange-500',
-      path: '/admin/pharmacy'
-    },
-    {
-      title: 'Billing',
-      description: 'Manage billing and payments',
-      icon: '💰',
-      color: 'bg-red-500',
-      path: '/admin/billing'
-    },
-    {
-      title: 'Reports',
-      description: 'Generate and view reports',
-      icon: '📈',
-      color: 'bg-indigo-500',
-      path: '/admin/reports'
+      };
+      fetchStats();
     }
+  }, [isMainPage]);
+
+  // Quick Actions Config
+  const actions = [
+    { title: 'Manage Users', icon: <Users size={20} />, path: '/admin/users', color: 'text-blue-600', bg: 'bg-blue-50' },
+    { title: 'Inventory', icon: <Building2 size={20} />, path: '/admin/inventory', color: 'text-orange-600', bg: 'bg-orange-50' },
+    { title: 'Reports', icon: <Activity size={20} />, path: '/admin/reports', color: 'text-purple-600', bg: 'bg-purple-50' },
+    { title: 'Add Staff', icon: <UserCog size={20} />, path: '/admin/users/new', color: 'text-teal-600', bg: 'bg-teal-50' },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <AdminSidebar />
-      
-      {/* Main Content */}
-      <div className="pl-64">
-        {/* Header with Background */}
-        <div 
-          className="relative bg-cover bg-center bg-no-repeat px-8 py-12"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("https://images.unsplash.com/photo-1538108149393-fbbd81895907?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80")',
-          }}
-        >
-          <div className="relative z-10">
-            <div className="flex justify-between items-center">
-              <div className="text-white">
-                <h1 className="text-4xl font-bold mb-2">Admin Dashboard</h1>
-                <p className="text-lg opacity-90">Welcome back! Here's what's happening in your hospital today.</p>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => navigate('/')}
-                  className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-4 py-2 rounded-lg transition border border-white/30"
-                >
-                  Home
+    <div className="min-h-screen bg-gray-50 flex font-sans">
+      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl border-r border-gray-100">
+        <AdminSidebar />
+      </div>
+
+      <div className="flex-1 ml-64 min-h-screen flex flex-col">
+        {/* Header */}
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-40 shadow-sm">
+          <div className="flex items-center gap-4">
+             <h2 className="text-xl font-bold text-gray-800 tracking-tight">Hospital Admin</h2>
+             <span className="hidden md:inline px-3 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-500">{today}</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="relative hidden md:block">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input type="text" placeholder="Global search..." className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none w-64 transition-all" />
+            </div>
+            <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
+                <Bell size={20} />
+            </button>
+            <div className="h-8 w-8 bg-teal-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                A
+            </div>
+          </div>
+        </header>
+
+        <main className="p-8 flex-1 overflow-y-auto">
+          {isMainPage ? (
+            <div className="space-y-8 animate-fade-in">
+              
+              <div className="flex justify-between items-end">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
+                    <p className="text-gray-500 mt-1">Here is what is happening in your hospital today.</p>
+                </div>
+                <button onClick={() => navigate('/admin/users/new')} className="bg-teal-600 text-white px-5 py-2.5 rounded-lg hover:bg-teal-700 transition shadow-sm font-medium flex items-center gap-2">
+                    <Users size={18} /> Add New Staff
                 </button>
-                <div className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
-                  <div className="w-8 h-8 bg-white text-teal-600 rounded-full flex items-center justify-center font-bold">
-                    A
-                  </div>
-                  <span className="text-white font-medium">Admin</span>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Total Patients</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-2">{loading ? '...' : stats.total_patients}</h3>
+                        </div>
+                        <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Users size={20} /></div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Active Doctors</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-2">{loading ? '...' : stats.total_doctors}</h3>
+                        </div>
+                        <div className="p-2 bg-teal-50 rounded-lg text-teal-600"><Stethoscope size={20} /></div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Total Staff</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-2">{loading ? '...' : stats.total_staff}</h3>
+                        </div>
+                        <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><UserCog size={20} /></div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Departments</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-2">{loading ? '...' : stats.total_departments}</h3>
+                        </div>
+                        <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Building2 size={20} /></div>
+                    </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Main Content Area */}
-        <div className="p-8">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Total Patients</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">
-                    {loading ? '...' : stats.total_patients}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">👨‍⚕️</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Total Doctors</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">
-                    {loading ? '...' : stats.total_doctors}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">🩺</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Departments</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">
-                    {loading ? '...' : stats.total_departments}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">🏥</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Staff Members</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">
-                    {loading ? '...' : stats.total_staff}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">👥</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {quickActions.map((action, index) => (
-                <div key={index} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                  <div className={`h-2 ${action.color}`}></div>
-                  <div className="p-6">
-                    <div className="flex items-center mb-4">
-                      <div className={`w-12 h-12 ${action.color} rounded-lg flex items-center justify-center text-white text-2xl mr-4`}>
-                        {action.icon}
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  
+                  {/* REAL CHART DATA */}
+                  <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="font-bold text-gray-800">Patient Flow Analytics (Last 7 Days)</h3>
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-800">{action.title}</h3>
-                    </div>
-                    <p className="text-gray-600 mb-4">{action.description}</p>
-                    <button
-                      onClick={() => navigate(action.path)}
-                      className={`w-full ${action.color} text-white py-2 rounded-lg hover:opacity-90 transition-opacity`}
-                    >
-                      Open {action.title}
-                    </button>
+                      <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={chartData}>
+                                  <defs>
+                                      <linearGradient id="colorPatients" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.2}/>
+                                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
+                                      </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} dy={10} />
+                                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                  <Area type="monotone" dataKey="patients" stroke="#0d9488" strokeWidth={2} fillOpacity={1} fill="url(#colorPatients)" />
+                              </AreaChart>
+                          </ResponsiveContainer>
+                      </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Recent Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-2 border-b">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-sm mr-3">
-                      👤
-                    </div>
-                    <div>
-                      <p className="text-gray-800 font-medium">New user registered</p>
-                      <p className="text-gray-600 text-sm">2 minutes ago</p>
-                    </div>
+                  {/* Quick Access List */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                      <h3 className="font-bold text-gray-800 mb-4">Quick Access</h3>
+                      <div className="space-y-3">
+                          {actions.map((action, idx) => (
+                              <button 
+                                key={idx} 
+                                onClick={() => navigate(action.path)}
+                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100 transition group"
+                              >
+                                  <div className="flex items-center gap-3">
+                                      <div className={`p-2 rounded-lg ${action.bg} ${action.color}`}>
+                                          {action.icon}
+                                      </div>
+                                      <span className="font-medium text-gray-700 group-hover:text-gray-900">{action.title}</span>
+                                  </div>
+                                  <ArrowUpRight size={16} className="text-gray-400 group-hover:text-gray-600" />
+                              </button>
+                          ))}
+                      </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-sm mr-3">
-                      📅
-                    </div>
-                    <div>
-                      <p className="text-gray-800 font-medium">Appointment scheduled</p>
-                      <p className="text-gray-600 text-sm">15 minutes ago</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-sm mr-3">
-                      💊
-                    </div>
-                    <div>
-                      <p className="text-gray-800 font-medium">Pharmacy order received</p>
-                      <p className="text-gray-600 text-sm">1 hour ago</p>
-                    </div>
-                  </div>
-                </div>
               </div>
-            </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">System Overview</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">System Status</span>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Online</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Database</span>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Connected</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Last Backup</span>
-                  <span className="text-gray-800 font-medium">Today, 2:00 AM</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Storage Used</span>
-                  <span className="text-gray-800 font-medium">45.2 GB / 100 GB</span>
-                </div>
-              </div>
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className="animate-fade-in">
+              <Outlet />
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );

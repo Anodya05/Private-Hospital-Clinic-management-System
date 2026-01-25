@@ -6,6 +6,14 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
 
+// --- Admin Sub-Pages ---
+import UsersList from './pages/admin/UsersList';
+import CreateUser from './pages/admin/CreateUser';
+import EditUser from './pages/admin/EditUser';
+import Inventory from './pages/admin/Inventory';
+import Reports from './pages/admin/Reports';
+import NotImplemented from './pages/admin/NotImplemented'; // <--- NEW IMPORT
+
 // --- Home Page Components ---
 import HeroSection from './components/HomePage/HeroSection';
 import QuickActionsBar from './components/HomePage/QuickActionsBar';
@@ -20,7 +28,7 @@ import Footer from './components/HomePage/Footer';
 import ReceptionistPatientRegistration from './pages/ReceptionistPatientRegistration';
 import PatientDashboard from './pages/dashboard/PatientDashboard';
 import DoctorDashboard from './pages/dashboard/DoctorDashboard';
-import AdminDashboard from './pages/dashboard/AdminDashboard';
+import AdminDashboard from './pages/dashboard/AdminDashboard'; // Acts as the Layout now
 import PharmacistDashboard from './pages/dashboard/PharmacistDashboard';
 import ReceptionistDashboard from './pages/dashboard/ReceptionistDashboard';
 
@@ -46,7 +54,11 @@ const RequireRole: React.FC<ChildrenProps & { role: string }> = ({ children, rol
     user = null;
   }
 
-  if (!user || user.role !== role) {
+  // Case-Insensitive Check
+  const userRole = user?.role?.toLowerCase();
+  const requiredRole = role.toLowerCase();
+
+  if (!user || userRole !== requiredRole) {
     return <Navigate to="/portal" replace />;
   }
 
@@ -74,27 +86,48 @@ const App: React.FC = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
 
-    {/* Protected routes */}
+    {/* --- ADMIN ROUTES --- */}
+    {/* AdminDashboard acts as a layout. Sub-routes render inside its <Outlet /> */}
     <Route
       path="/admin"
       element={(
         <RequireAuth>
-          <AdminDashboard />
+          <RequireRole role="admin">
+            <AdminDashboard />
+          </RequireRole>
         </RequireAuth>
       )}
-    />
+    >
+        {/* Working Pages */}
+        <Route path="users" element={<UsersList />} />
+        <Route path="users/new" element={<CreateUser />} />
+        <Route path="users/:id/edit" element={<EditUser />} />
+        
+        <Route path="reports" element={<Reports />} />
+        <Route path="inventory" element={<Inventory />} />
 
+        {/* Placeholders for Future Features */}
+        <Route path="appointments" element={<NotImplemented />} />
+        <Route path="departments" element={<NotImplemented />} />
+        <Route path="billing" element={<NotImplemented />} />
+        <Route path="settings" element={<NotImplemented />} />
+    </Route>
+
+    {/* --- DOCTOR ROUTES --- */}
     <Route
-      path="/doctor"
+      path="/doctor/*"
       element={(
         <RequireAuth>
-          <DoctorDashboard />
+          <RequireRole role="doctor">
+            <DoctorDashboard />
+          </RequireRole>
         </RequireAuth>
       )}
     />
 
+    {/* --- PATIENT ROUTES --- */}
     <Route
-      path="/patient"
+      path="/patient/*"
       element={(
         <RequireAuth>
           <RequireRole role="patient">
@@ -113,11 +146,14 @@ const App: React.FC = () => (
       )}
     />
 
+    {/* --- RECEPTIONIST ROUTES --- */}
     <Route
-      path="/receptionist"
+      path="/receptionist/*"
       element={(
         <RequireAuth>
-          <ReceptionistDashboard />
+          <RequireRole role="receptionist">
+            <ReceptionistDashboard />
+          </RequireRole>
         </RequireAuth>
       )}
     />
@@ -126,25 +162,33 @@ const App: React.FC = () => (
       path="/receptionist/register-patient"
       element={(
         <RequireAuth>
-          <ReceptionistPatientRegistration />
+          <RequireRole role="receptionist">
+            <ReceptionistPatientRegistration />
+          </RequireRole>
         </RequireAuth>
       )}
     />
 
+    {/* --- PHARMACIST ROUTES --- */}
     <Route
-      path="/pharmacist"
+      path="/pharmacist/*"
       element={(
         <RequireAuth>
-          <PharmacistDashboard />
+          <RequireRole role="pharmacist">
+            <PharmacistDashboard />
+          </RequireRole>
         </RequireAuth>
       )}
     />
 
+    {/* Pharmacist Sub-routes */}
     <Route
       path="/pharmacist/prescriptions"
       element={(
         <RequireAuth>
-          <PrescriptionProcessingView />
+          <RequireRole role="pharmacist">
+            <PrescriptionProcessingView />
+          </RequireRole>
         </RequireAuth>
       )}
     />
@@ -153,7 +197,9 @@ const App: React.FC = () => (
       path="/pharmacist/inventory"
       element={(
         <RequireAuth>
-          <InventoryManagement />
+          <RequireRole role="pharmacist">
+            <InventoryManagement />
+          </RequireRole>
         </RequireAuth>
       )}
     />
@@ -162,7 +208,9 @@ const App: React.FC = () => (
       path="/pharmacist/suppliers"
       element={(
         <RequireAuth>
-          <SupplierManagement />
+          <RequireRole role="pharmacist">
+            <SupplierManagement />
+          </RequireRole>
         </RequireAuth>
       )}
     />
@@ -171,7 +219,9 @@ const App: React.FC = () => (
       path="/pharmacist/purchases"
       element={(
         <RequireAuth>
-          <DrugPurchaseManagement />
+          <RequireRole role="pharmacist">
+            <DrugPurchaseManagement />
+          </RequireRole>
         </RequireAuth>
       )}
     />
@@ -180,5 +230,5 @@ const App: React.FC = () => (
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );
-export default App;
 
+export default App;
