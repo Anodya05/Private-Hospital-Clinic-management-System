@@ -1,0 +1,209 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Appointment;
+use App\Models\Drug;
+use App\Models\Payment;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Role;
+use Carbon\Carbon;
+
+class AdminController extends Controller
+{
+    // ==========================================
+    // 1. USER MANAGEMENT
+    // ==========================================
+
+    public function getUsers()
+    {
+        $users = User::with('roles')->latest()->get()->map(function ($user) {
+            $name = $user->name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            
+            return [
+                'id' => $user->id,
+                'name' => $name ?: 'User ' . $user->id,
+                'email' => $user->email,
+                'role' => $user->roles->first()->name ?? 'patient',
+                'is_active' => $user->is_active,
+                'created_at' => $user->created_at->format('Y-m-d'),
+            ];
+        });
+
+        return response()->json($users);
+    }
+
+    public function createUser(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:8',
+            'role' => 'required|exists:roles,name',
+            'department_id' => 'nullable|integer',
+        ]);
+
+        $parts = explode(' ', trim($validated['name']), 2);
+        $firstName = $parts[0];
+        $lastName = $parts[1] ?? '';
+        $username = strtolower($firstName . ($lastName ? '.' . $lastName : '')) . rand(10, 99);
+
+        $userData = [
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'username' => $username,
+            'is_active' => true,
+            'department_id' => $validated['department_id'] ?? null,
+        ];
+
+        if (Schema::hasColumn('users', 'first_name')) {
+            $userData['first_name'] = $firstName;
+            $userData['last_name'] = $lastName;
+        } else {
+            $userData['name'] = $validated['name'];
+        }
+
+        $user = User::create($userData);
+        $user->assignRole($validated['role']);
+
+        return response()->json(['message' => 'User created successfully', 'user' => $user]);
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'string',
+            'email' => 'email|unique:users,email,' . $id,
+            'role' => 'exists:roles,name',
+        ]);
+
+        if ($request->has('name')) {
+            if (Schema::hasColumn('users', 'first_name')) {
+                $parts = explode(' ', trim($validated['name']), 2);
+                $user->first_name = $parts[0];
+                $user->last_name = $parts[1] ?? '';
+            } else {
+                $user->name = $validated['name'];
+            }
+        }
+
+        if ($request->has('email')) {
+            $user->email = $validated['email'];
+        }
+
+        $user->save();
+
+        if ($request->has('role')) {
+            $user->syncRoles([$request->role]);
+        }
+
+        return response()->json(['message' => 'User updated successfully']);
+    }
+
+    public function toggleUserStatus($id)
+    {
+        $user = User::findOrFail($id);
+        if ($user->id === auth()->id()) {
+            return response()->json(['message' => 'You cannot deactivate your own account.'], 403);
+        }
+
+        $user->is_active = !$user->is_active;
+        $user->save();
+
+        $status = $user->is_active ? 'activated' : 'deactivated';
+        return response()->json(['message' => "User account $status."]);
+    }
+
+    // ==========================================
+    // 2. REPORTING & ANALYTICS (UPDATED)
+    // ==========================================
+
+    public function getDashboardStats()
+    {
+        // 1. Calculate Chart Data (Patient flow for the last 7 days)
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i);
+            
+            // Count appointments created or scheduled for this specific date
+            // Note: Adjust 'appointment_date' to your actual column name
+            $count = Appointment::whereDate('appointment_date', $date->format('Y-m-d'))->count();
+
+            $chartData[] = [
+                'name' => $date->format('D'), // Returns "Mon", "Tue"
+                'patients' => $count
+            ];
+        }
+
+        // 2. Gather Real Counts for the Cards
+        $totalUsers = User::count();
+        $totalPatients = User::role('patient')->count();
+        $totalDoctors = User::role('doctor')->count();
+        
+        // Count Staff (Pharmacist + Receptionist)
+        // Spatie allows passing an array of role names
+        $totalStaff = User::role(['pharmacist', 'receptionist'])->count();
+        
+        $totalDepartments = 5; // Placeholder (or use Department::count())
+
+        // 3. Return the specific structure required by React
+        return response()->json([
+            'counts' => [
+                'total_users' => $totalUsers,
+                'total_doctors' => $totalDoctors,
+                'total_patients' => $totalPatients,
+                'total_staff' => $totalStaff,
+                'total_departments' => $totalDepartments,
+            ],
+            'chart_data' => $chartData
+        ]);
+    }
+
+    public function getDoctorPerformance()
+    {
+        $performance = Appointment::where('status', 'completed')
+            ->select('doctor_id', DB::raw('count(*) as total_appointments'))
+            ->with('doctor')
+            ->groupBy('doctor_id')
+            ->orderByDesc('total_appointments')
+            ->take(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'doctor_name' => $item->doctor ? $item->doctor->name : 'Unknown Doctor',
+                    'total_appointments' => $item->total_appointments
+                ];
+            });
+
+        return response()->json($performance);
+    }
+
+    // ==========================================
+    // 3. INVENTORY MANAGEMENT
+    // ==========================================
+
+    public function getInventory()
+    {
+        $inventory = Drug::select('id', 'name', 'stock_quantity', 'expiry_date')
+            ->orderBy('stock_quantity', 'asc')
+            ->get()
+            ->map(function($drug) {
+                return [
+                    'id' => $drug->id,
+                    'name' => $drug->name,
+                    'stock' => $drug->stock_quantity,
+                    'status' => $drug->stock_quantity < 10 ? 'Low Stock' : 'In Stock',
+                    'expiry' => $drug->expiry_date
+                ];
+            });
+
+        return response()->json($inventory);
+    }
+}
