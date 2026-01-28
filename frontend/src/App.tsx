@@ -12,7 +12,8 @@ import CreateUser from './pages/admin/CreateUser';
 import EditUser from './pages/admin/EditUser';
 import Inventory from './pages/admin/Inventory';
 import Reports from './pages/admin/Reports';
-import NotImplemented from './pages/admin/NotImplemented'; // <--- NEW IMPORT
+import Departments from './pages/admin/Departments'; // <--- NEW IMPORT
+import NotImplemented from './pages/admin/NotImplemented';
 
 // --- Home Page Components ---
 import HeroSection from './components/HomePage/HeroSection';
@@ -28,7 +29,7 @@ import Footer from './components/HomePage/Footer';
 import ReceptionistPatientRegistration from './pages/ReceptionistPatientRegistration';
 import PatientDashboard from './pages/dashboard/PatientDashboard';
 import DoctorDashboard from './pages/dashboard/DoctorDashboard';
-import AdminDashboard from './pages/dashboard/AdminDashboard'; // Acts as the Layout now
+import AdminDashboard from './pages/dashboard/AdminDashboard';
 import PharmacistDashboard from './pages/dashboard/PharmacistDashboard';
 import ReceptionistDashboard from './pages/dashboard/ReceptionistDashboard';
 
@@ -54,7 +55,6 @@ const RequireRole: React.FC<ChildrenProps & { role: string }> = ({ children, rol
     user = null;
   }
 
-  // Case-Insensitive Check
   const userRole = user?.role?.toLowerCase();
   const requiredRole = role.toLowerCase();
 
@@ -87,7 +87,6 @@ const App: React.FC = () => (
     <Route path="/register" element={<RegisterPage />} />
 
     {/* --- ADMIN ROUTES --- */}
-    {/* AdminDashboard acts as a layout. Sub-routes render inside its <Outlet /> */}
     <Route
       path="/admin"
       element={(
@@ -105,10 +104,12 @@ const App: React.FC = () => (
         
         <Route path="reports" element={<Reports />} />
         <Route path="inventory" element={<Inventory />} />
+        
+        {/* --- CONNECTED DEPARTMENT PAGE --- */}
+        <Route path="departments" element={<Departments />} />
 
         {/* Placeholders for Future Features */}
         <Route path="appointments" element={<NotImplemented />} />
-        <Route path="departments" element={<NotImplemented />} />
         <Route path="billing" element={<NotImplemented />} />
         <Route path="settings" element={<NotImplemented />} />
     </Route>

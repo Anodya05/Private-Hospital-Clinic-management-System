@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 // --- Imports ---
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\AdminController; // <--- Added Admin Controller
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\PrescriptionController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\SupplierController;
@@ -55,7 +55,7 @@ Route::prefix('auth')->group(function () {
 });
 
 // ==========================================
-// ADMIN ROUTES (New Section)
+// ADMIN ROUTES
 // ==========================================
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     // User Management
@@ -70,6 +70,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
 
     // Inventory Monitoring (Admin View)
     Route::get('/inventory', [AdminController::class, 'getInventory']);
+    Route::post('/inventory', [AdminController::class, 'addDrug']);
+    
+    // --- NEW: Edit & Delete Routes ---
+    Route::put('/inventory/{id}', [AdminController::class, 'updateDrug']);
+    Route::delete('/inventory/{id}', [AdminController::class, 'deleteDrug']);
 });
 
 // ==========================================
