@@ -122,7 +122,7 @@ class AdminController extends Controller
     }
 
     // ==========================================
-    // 2. REPORTING & ANALYTICS (UPDATED)
+    // 2. REPORTING & ANALYTICS
     // ==========================================
 
     public function getDashboardStats()
@@ -131,9 +131,6 @@ class AdminController extends Controller
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
-            
-            // Count appointments created or scheduled for this specific date
-            // Note: Adjust 'appointment_date' to your actual column name
             $count = Appointment::whereDate('appointment_date', $date->format('Y-m-d'))->count();
 
             $chartData[] = [
@@ -146,14 +143,9 @@ class AdminController extends Controller
         $totalUsers = User::count();
         $totalPatients = User::role('patient')->count();
         $totalDoctors = User::role('doctor')->count();
-        
-        // Count Staff (Pharmacist + Receptionist)
-        // Spatie allows passing an array of role names
         $totalStaff = User::role(['pharmacist', 'receptionist'])->count();
-        
-        $totalDepartments = 5; // Placeholder (or use Department::count())
+        $totalDepartments = 5; 
 
-        // 3. Return the specific structure required by React
         return response()->json([
             'counts' => [
                 'total_users' => $totalUsers,
@@ -205,5 +197,52 @@ class AdminController extends Controller
             });
 
         return response()->json($inventory);
+    }
+
+    public function addDrug(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'stock_quantity' => 'required|integer|min:0',
+            'expiry_date' => 'required|date',
+        ]);
+
+        $drug = Drug::create([
+            'name' => $validated['name'],
+            'stock_quantity' => $validated['stock_quantity'],
+            'expiry_date' => $validated['expiry_date']
+        ]);
+
+        return response()->json(['message' => 'Medicine added successfully', 'drug' => $drug]);
+    }
+
+    // --- NEW: Update Drug Function ---
+    public function updateDrug(Request $request, $id)
+    {
+        $drug = Drug::findOrFail($id);
+        
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'stock_quantity' => 'required|integer|min:0',
+            'expiry_date' => 'required|date',
+        ]);
+
+        $drug->update([
+            'name' => $validated['name'],
+            'stock_quantity' => $validated['stock_quantity'],
+            'expiry_date' => $validated['expiry_date'],
+            // Status is calculated dynamically, but we update the database record just in case
+            'status' => $validated['stock_quantity'] < 10 ? 'Low Stock' : 'In Stock'
+        ]);
+
+        return response()->json(['message' => 'Medicine updated successfully', 'drug' => $drug]);
+    }
+
+    // --- NEW: Delete Drug Function ---
+    public function deleteDrug($id)
+    {
+        $drug = Drug::findOrFail($id);
+        $drug->delete();
+        return response()->json(['message' => 'Medicine deleted successfully']);
     }
 }
