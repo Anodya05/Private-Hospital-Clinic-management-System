@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Appointment;
 use App\Models\Drug;
-use App\Models\Department; // <--- Added this import
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -294,10 +294,31 @@ class AdminController extends Controller
                     'date' => $appt->appointment_date,
                     'status' => $appt->status,
                     'reason' => $appt->reason,
+                    'notes' => $appt->notes, // Included notes so they can be edited
                 ];
             });
 
         return response()->json($appointments);
+    }
+
+    // --- NEW: Update Appointment Function ---
+    public function updateAppointment(Request $request, $id)
+    {
+        $appointment = Appointment::findOrFail($id);
+        
+        $validated = $request->validate([
+            'appointment_date' => 'required|date',
+            'status' => 'required|string|in:Scheduled,Completed,Cancelled',
+            'notes' => 'nullable|string',
+        ]);
+
+        $appointment->update([
+            'appointment_date' => $validated['appointment_date'],
+            'status' => $validated['status'],
+            'notes' => $validated['notes'] ?? $appointment->notes,
+        ]);
+
+        return response()->json(['message' => 'Appointment updated successfully', 'appointment' => $appointment]);
     }
 
     public function deleteAppointment($id)
