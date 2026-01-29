@@ -185,6 +185,8 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::post('prescriptions', [DoctorPrescriptionController::class, 'store']);
     Route::get('prescriptions', [DoctorPrescriptionController::class, 'index']);
     Route::get('prescriptions/{id}', [DoctorPrescriptionController::class, 'show']);
+    Route::put('prescriptions/{id}', [DoctorPrescriptionController::class, 'update']);
+    Route::delete('prescriptions/{id}', [DoctorPrescriptionController::class, 'destroy']);
 
     // Lab Orders & Results
     Route::post('labs/orders', [DoctorLabController::class, 'createOrder']);

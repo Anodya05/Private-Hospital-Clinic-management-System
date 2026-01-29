@@ -100,6 +100,7 @@ const DoctorDashboardView: React.FC = () => {
 
   const [prescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
   const [prescriptionSaving, setPrescriptionSaving] = useState(false);
+  const [editingPrescription, setEditingPrescription] = useState<DoctorPrescription | null>(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventory, setInventory] = useState<DoctorInventoryItem[]>([]);
   const [clinics, setClinics] = useState<{ id: number; name: string }[]>([]);
@@ -470,6 +471,49 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  const editPrescription = async (prescription: DoctorPrescription) => {
+    setEditingPrescription(prescription);
+    setPrescriptionModalOpen(true);
+    await loadInventory();
+    await loadClinics();
+  };
+
+  const updatePrescription = async (payload: CreatePrescriptionPayload) => {
+    if (!editingPrescription) return;
+    
+    setError(null);
+    setPrescriptionSaving(true);
+    try {
+      await doctorApi.prescriptions.update(editingPrescription.id, payload);
+      setPrescriptionModalOpen(false);
+      setEditingPrescription(null);
+      await loadPrescriptions();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update prescription');
+    } finally {
+      setPrescriptionSaving(false);
+    }
+  };
+
+  const deletePrescription = async (prescription: DoctorPrescription) => {
+    if (!window.confirm(`Are you sure you want to delete prescription ${prescription.prescription_number}?`)) {
+      return;
+    }
+
+    setError(null);
+    try {
+      await doctorApi.prescriptions.delete(prescription.id);
+      await loadPrescriptions();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete prescription');
+    }
+  };
+
+  const closePrescriptionModal = () => {
+    setPrescriptionModalOpen(false);
+    setEditingPrescription(null);
+  };
+
   const loadLabResults = async () => {
     const pid = Number(labsPatientId);
     if (!Number.isFinite(pid) || pid <= 0) return;
@@ -515,8 +559,17 @@ const DoctorDashboardView: React.FC = () => {
       await doctorApi.labs.createOrder(payload);
       setLabOrderModalOpen(false);
       setLabOrderForm((p) => ({ ...p, test_type: '', test_description: '', clinic_id: '', notes: '', instructions: '' }));
-      if (labsPatientId.trim() === String(patientId)) {
-        await loadLabResults();
+      // Set labsPatientId and reload lab data for this patient
+      setLabsPatientId(String(patientId));
+      // Force reload lab results
+      setLabsLoading(true);
+      try {
+        const data = await doctorApi.labs.getPatientResults(patientId);
+        setLabData(data);
+      } catch (loadError: any) {
+        console.error('Failed to reload lab results:', loadError);
+      } finally {
+        setLabsLoading(false);
       }
     } catch (e: any) {
       setError(e?.message || 'Failed to create lab order');
@@ -665,7 +718,25 @@ const DoctorDashboardView: React.FC = () => {
     if (active === 'queue' && !queueLoaded && !queueLoading) {
       loadQueue();
     }
-  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, loadQueue, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading, queueLoaded, queueLoading]);
+    // Auto-load lab results when switching to labs tab with a current consultation patient
+    if (active === 'labs' && currentPatientInConsultation && !labsLoading) {
+      const patientId = String(currentPatientInConsultation.patient_id);
+      if (labsPatientId !== patientId) {
+        setLabsPatientId(patientId);
+      }
+      // Load lab data for the current patient
+      if (labsPatientId.trim() !== '' || patientId) {
+        const pid = Number(patientId || labsPatientId);
+        if (Number.isFinite(pid) && pid > 0 && !labData) {
+          setLabsLoading(true);
+          doctorApi.labs.getPatientResults(pid)
+            .then(data => setLabData(data))
+            .catch(e => setError(e?.message || 'Failed to load lab results'))
+            .finally(() => setLabsLoading(false));
+        }
+      }
+    }
+  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, loadQueue, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading, queueLoaded, queueLoading, currentPatientInConsultation, labsPatientId, labsLoading, labData]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaysAppointments = useMemo(
@@ -1275,12 +1346,30 @@ const DoctorDashboardView: React.FC = () => {
                                   <td className="px-6 py-4 text-sm text-gray-600">{p.prescription_date}</td>
                                   <td className="px-6 py-4 text-sm text-gray-600">{p.status}</td>
                                   <td className="px-6 py-4">
-                                    <button
-                                      onClick={() => openPrescriptionDetails(p)}
-                                      className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                                    >
-                                      View
-                                    </button>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => openPrescriptionDetails(p)}
+                                        className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                      >
+                                        View
+                                      </button>
+                                      {p.status === 'pending' && (
+                                        <>
+                                          <button
+                                            onClick={() => editPrescription(p)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            onClick={() => deletePrescription(p)}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                          >
+                                            Delete
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -1336,6 +1425,8 @@ const DoctorDashboardView: React.FC = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dosage</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meal Timing</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200">
@@ -1345,6 +1436,8 @@ const DoctorDashboardView: React.FC = () => {
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.quantity}</td>
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.dosage || '-'}</td>
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.frequency || '-'}</td>
+                                      <td className="px-6 py-4 text-sm text-gray-600">{it.meal_timing || '-'}</td>
+                                      <td className="px-6 py-4 text-sm text-gray-600">{it.duration_days || '-'}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1903,11 +1996,9 @@ const DoctorDashboardView: React.FC = () => {
           clinics={clinics}
           initialPatientId={selectedAppointment?.patient_id ?? null}
           initialAppointmentId={selectedAppointment?.id ?? null}
-          onClose={() => {
-            if (prescriptionSaving) return;
-            setPrescriptionModalOpen(false);
-          }}
-          onSubmit={createPrescription}
+          initialPrescription={editingPrescription}
+          onClose={closePrescriptionModal}
+          onSubmit={editingPrescription ? updatePrescription : createPrescription}
         />
 
         {labOrderModalOpen && (
