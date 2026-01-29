@@ -2,7 +2,11 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\AuthController;
+
+// Auth Controller (Moved to main namespace per previous fix)
+use App\Http\Controllers\AuthController;
+
+// API Controllers (Kept in Api namespace)
 use App\Http\Controllers\Api\PrescriptionController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\SupplierController;
@@ -35,6 +39,13 @@ use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
 use App\Http\Controllers\Api\ClinicController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
+// Authentication Routes
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
@@ -114,6 +125,7 @@ Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(fu
     Route::get('prescriptions/{id}', [PatientPrescriptionController::class, 'show']);
 });
 
+// Receptionist Portal Routes
 Route::middleware(['auth:sanctum', 'role:receptionist'])->prefix('receptionist')->group(function () {
     Route::get('dashboard/stats', [ReceptionistDashboardController::class, 'stats']);
 

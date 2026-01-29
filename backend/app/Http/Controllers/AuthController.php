@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Log; // Added for cleaner logging
 use Spatie\Permission\Models\Role as SpatieRole;
 
 class AuthController extends Controller
@@ -98,7 +98,8 @@ class AuthController extends Controller
         ]);
 
         // Assign role using Spatie Permission
-        SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']); 
+        // Ensure guard matches your config (usually 'web' or 'api')
+        SpatieRole::findOrCreate($roleName, 'web'); 
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -118,7 +119,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Login for all roles with Self-Healing
+     * Login for all roles
      */
     public function login(Request $request)
     {
@@ -135,22 +136,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // --- SELF-HEALING LOGIC ---
-        // If user has no role, assume they are a patient and fix it automatically.
-        if ($user->roles->isEmpty()) {
-            Log::warning("User {$user->email} logged in without a role. Auto-assigning 'patient'.");
-            
-            // Ensure the role exists
-            SpatieRole::firstOrCreate(['name' => 'patient', 'guard_name' => 'web']);
-            
-            // Assign the role
-            $user->assignRole('patient');
-            
-            // Refresh the user model to load the new relationship
-            $user->refresh();
-        }
-        // ---------------------------
-
         // Revoke previous tokens to prevent token accumulation
         $user->tokens()->delete();
 
@@ -165,7 +150,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
                 'email' => $user->email,
-                'roles' => $roles, // Now guaranteed to have at least ['patient']
+                'roles' => $roles,
             ],
         ]);
     }
