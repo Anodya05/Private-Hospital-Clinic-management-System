@@ -39,7 +39,6 @@ class AuthController extends Controller
 
         $roleName = 'patient';
 
-        // Split name safely
         $parts = preg_split('/\s+/', trim($data['name']));
         $firstName = $parts[0] ?? '';
         $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'Patient';
@@ -58,7 +57,6 @@ class AuthController extends Controller
 
         $user = User::create($userData);
 
-        // Create patient profile
         PatientProfile::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
@@ -75,7 +73,7 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign Role
+        // Assign Role and clear Spatie cache
         SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
         $user->assignRole($roleName);
@@ -85,12 +83,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Registration successful',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
-                'email' => $user->email,
-                'roles' => $user->getRoleNames(), // Spatie method
-            ],
+            'user' => $this->formatUserData($user),
         ], 201);
     }
 
@@ -116,14 +109,11 @@ class AuthController extends Controller
         if ($user->getRoleNames()->isEmpty()) {
             Log::warning("User {$user->email} has no roles. Auto-assigning 'patient'.");
 
-            // Clear permission cache to avoid stale roles
             app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-            // Assign default role
             SpatieRole::firstOrCreate(['name' => 'patient', 'guard_name' => 'web']);
             $user->assignRole('patient');
 
-            // Refresh user instance
             $user = $user->fresh();
         }
 
@@ -133,12 +123,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Login successful',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
-                'email' => $user->email,
-                'roles' => $user->getRoleNames(),
-            ],
+            'user' => $this->formatUserData($user),
         ]);
     }
 
@@ -147,12 +132,7 @@ class AuthController extends Controller
         $user = $request->user();
 
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
-                'email' => $user->email,
-                'roles' => $user->getRoleNames(),
-            ],
+            'user' => $this->formatUserData($user),
         ]);
     }
 
@@ -161,5 +141,30 @@ class AuthController extends Controller
         $request->user()?->tokens()->delete();
 
         return response()->json(['message' => 'Logged out']);
+    }
+
+    /**
+     * Helper to format user data consistently
+     */
+    private function formatUserData($user)
+    {
+        $user->load('role');
+
+        $roleName = 'patient';
+        if ($user->role) {
+            $roleName = $user->role->name;
+        } elseif ($user->roles && $user->roles->first()) {
+            $roleName = $user->roles->first()->name;
+        }
+
+        return [
+            'id' => $user->id,
+            'first_name' => $user->first_name ?? $user->name,
+            'last_name' => $user->last_name ?? '',
+            'name' => $user->name ?? ($user->first_name . ' ' . $user->last_name),
+            'username' => $user->username,
+            'email' => $user->email,
+            'role' => $roleName,
+        ];
     }
 }
