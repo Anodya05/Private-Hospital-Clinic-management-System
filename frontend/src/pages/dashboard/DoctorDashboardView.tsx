@@ -11,9 +11,11 @@ import {
   Menu,
   Pill,
   Share2,
+  Users,
   Video,
   X,
 } from 'lucide-react';
+import { API_ENDPOINTS } from '../../config/api';
 import { doctorApi } from '../../api/doctor';
 import { AppointmentTable } from '../../components/doctor/AppointmentTable';
 import { DiagnosisForm } from '../../components/doctor/DiagnosisForm';
@@ -37,7 +39,7 @@ import type {
 } from '../../types/doctor';
 import type { AuthUser } from '../../types/auth';
 
-type SectionKey = 'overview' | 'appointments' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
+type SectionKey = 'overview' | 'appointments' | 'queue' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
 
 const safeParseJson = (value: string | null) => {
   if (!value) return null;
@@ -135,6 +137,46 @@ const DoctorDashboardView: React.FC = () => {
     referral_date: new Date().toISOString().slice(0, 10),
     appointment_date: '',
   });
+
+  // Queue state
+  interface QueuePatient {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+  }
+  interface QueueEntry {
+    id: number | string;
+    patient_id: number;
+    patient?: QueuePatient | null;
+    appointment_id: number | null;
+    appointment?: {
+      id: number;
+      appointment_date: string;
+      appointment_time: string;
+      type: string;
+      status: string;
+    } | null;
+    queue_number: number | null;
+    status: string;
+    priority?: string;
+    notes?: string | null;
+    checked_in_at?: string;
+    called_at?: string | null;
+    completed_at?: string | null;
+    checked_in?: boolean;
+  }
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
+  const [callingNext, setCallingNext] = useState(false);
+
+  const getPatientName = (entry: QueueEntry): string => {
+    if (entry.patient) {
+      return `${entry.patient.first_name || ''} ${entry.patient.last_name || ''}`.trim() || 'Unknown';
+    }
+    return 'Unknown Patient';
+  };
 
   // Patient registration (doctor)
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -509,6 +551,74 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  // Queue functions
+  const loadQueue = useCallback(async () => {
+    setError(null);
+    setQueueLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Failed to load queue');
+      const data = await response.json();
+      setQueueEntries(Array.isArray(data.data) ? data.data : []);
+      setQueueLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load queue');
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
+  const callNextPatient = async () => {
+    setCallingNext(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE_CALL_NEXT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Failed to call next patient');
+      }
+      await loadQueue();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to call next patient');
+    } finally {
+      setCallingNext(false);
+    }
+  };
+
+  const updateQueueStatus = async (id: number, status: string) => {
+    setError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE_STATUS(String(id)), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) throw new Error('Failed to update status');
+      await loadQueue();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update status');
+    }
+  };
+
   useEffect(() => {
     if (active === 'prescriptions' && !prescriptionsLoaded && !prescriptionsLoading) {
       loadPrescriptions();
@@ -516,7 +626,10 @@ const DoctorDashboardView: React.FC = () => {
     if (active === 'referrals' && !referralsLoaded && !referralsLoading) {
       loadReferrals(initialReferralFilters);
     }
-  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading]);
+    if (active === 'queue' && !queueLoaded && !queueLoading) {
+      loadQueue();
+    }
+  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, loadQueue, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading, queueLoaded, queueLoading]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaysAppointments = useMemo(
@@ -556,6 +669,13 @@ const DoctorDashboardView: React.FC = () => {
         >
           <Calendar className="w-5 h-5" />
           <span className="text-sm font-medium">Appointments</span>
+        </button>
+        <button
+          onClick={() => setActive('queue')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'queue' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-sm font-medium">Patient Queue</span>
         </button>
         <button
           onClick={() => setActive('consultation')}
@@ -615,6 +735,7 @@ const DoctorDashboardView: React.FC = () => {
             [
               ['overview', 'Overview', LayoutDashboard],
               ['appointments', 'Appointments', Calendar],
+              ['queue', 'Patient Queue', Users],
               ['consultation', 'Consultation', Video],
               ['ehr', 'EHR', FileText],
               ['prescriptions', 'Prescriptions', Pill],
@@ -1393,6 +1514,116 @@ const DoctorDashboardView: React.FC = () => {
                           </table>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active === 'queue' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Patient Queue</h2>
+                    <p className="text-gray-600 text-sm">View and manage patients waiting to be seen</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={callNextPatient}
+                      disabled={callingNext || queueEntries.filter(e => e.status === 'waiting').length === 0}
+                      className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
+                    >
+                      {callingNext ? 'Calling...' : 'Call Next Patient'}
+                    </button>
+                    <button
+                      onClick={() => loadQueue()}
+                      disabled={queueLoading}
+                      className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-full transition duration-300"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {queueLoading ? (
+                  <div className="text-center py-12">Loading...</div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Queue #</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Appointment</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {queueEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-8 text-center text-gray-600">
+                                No patients in queue.
+                              </td>
+                            </tr>
+                          ) : (
+                            queueEntries.map((entry) => (
+                              <tr key={entry.id} className={`hover:bg-gray-50 ${entry.status === 'in_consultation' || entry.status === 'in_progress' ? 'bg-teal-50' : ''}`}>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900">{entry.queue_number ?? '-'}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{getPatientName(entry)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                  {entry.appointment ? (
+                                    <span>{entry.appointment.appointment_time} - {entry.appointment.type}</span>
+                                  ) : '-'}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    entry.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                                    entry.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                                    (entry.status === 'in_consultation' || entry.status === 'in_progress') ? 'bg-teal-100 text-teal-800' :
+                                    entry.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {entry.status.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                  {entry.checked_in_at ? new Date(entry.checked_in_at).toLocaleTimeString() : 
+                                   entry.appointment?.appointment_time || '-'}
+                                </td>
+                                <td className="px-6 py-4 text-sm">
+                                  {(entry.status === 'waiting' || entry.status === 'scheduled') && typeof entry.id === 'number' && (
+                                    <button
+                                      onClick={() => updateQueueStatus(entry.id as number, 'in_consultation')}
+                                      className="text-teal-600 hover:text-teal-800 font-medium mr-3"
+                                    >
+                                      Start
+                                    </button>
+                                  )}
+                                  {(entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                    <button
+                                      onClick={() => updateQueueStatus(entry.id as number, 'completed')}
+                                      className="text-green-600 hover:text-green-800 font-medium mr-3"
+                                    >
+                                      Complete
+                                    </button>
+                                  )}
+                                  {(entry.status === 'waiting' || entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                    <button
+                                      onClick={() => updateQueueStatus(entry.id as number, 'no_show')}
+                                      className="text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                      No Show
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
