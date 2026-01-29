@@ -18,11 +18,24 @@ class DoctorQueueController extends Controller
         $doctor = $request->user();
         $date = $request->get('date') ?: now()->toDateString();
 
+        // Get queue entries assigned to this doctor OR unassigned (general queue)
         $query = QueueEntry::query()
             ->where(function ($q) use ($doctor) {
+                // Entries directly assigned to this doctor
                 $q->where('doctor_id', $doctor->id)
+                  // OR entries where the appointment is assigned to this doctor
                   ->orWhereHas('appointment', function ($aq) use ($doctor) {
                       $aq->where('doctor_id', $doctor->id);
+                  })
+                  // OR unassigned entries (general queue) - both queue and appointment have no doctor
+                  ->orWhere(function ($uq) {
+                      $uq->whereNull('doctor_id')
+                         ->where(function ($apq) {
+                             $apq->whereDoesntHave('appointment')
+                                 ->orWhereHas('appointment', function ($aq) {
+                                     $aq->whereNull('doctor_id');
+                                 });
+                         });
                   });
             })
             ->whereDate('queue_date', $date)
@@ -39,11 +52,14 @@ class DoctorQueueController extends Controller
 
         $entries = $query->get();
 
-        // Also get scheduled appointments not yet checked-in
+        // Also get scheduled appointments not yet checked-in (assigned to this doctor or unassigned)
         $appointmentIdsInQueue = $entries->pluck('appointment_id')->filter()->unique()->toArray();
 
         $appointmentsQuery = Appointment::query()
-            ->where('doctor_id', $doctor->id)
+            ->where(function ($q) use ($doctor) {
+                $q->where('doctor_id', $doctor->id)
+                  ->orWhereNull('doctor_id');
+            })
             ->whereDate('appointment_date', $date)
             ->with([
                 'patient:id,first_name,last_name,email,username,is_active',
@@ -89,11 +105,21 @@ class DoctorQueueController extends Controller
     {
         $doctor = $request->user();
 
+        // Allow updating entries assigned to this doctor OR unassigned entries
         $entry = QueueEntry::query()
             ->where(function ($q) use ($doctor) {
                 $q->where('doctor_id', $doctor->id)
                   ->orWhereHas('appointment', function ($aq) use ($doctor) {
                       $aq->where('doctor_id', $doctor->id);
+                  })
+                  ->orWhere(function ($uq) {
+                      $uq->whereNull('doctor_id')
+                         ->where(function ($apq) {
+                             $apq->whereDoesntHave('appointment')
+                                 ->orWhereHas('appointment', function ($aq) {
+                                     $aq->whereNull('doctor_id');
+                                 });
+                         });
                   });
             })
             ->findOrFail($id);
@@ -104,14 +130,40 @@ class DoctorQueueController extends Controller
 
         $entry->status = $validated['status'];
 
+        // When starting consultation, assign this doctor to the entry
         if (in_array($validated['status'], ['in_consultation', 'in_progress'])) {
+            // If this entry was unassigned (no doctor), we need to assign it to this doctor
+            // and potentially update the queue_number to avoid unique constraint violation
+            if ($entry->doctor_id === null || $entry->doctor_id !== $doctor->id) {
+                $entry->doctor_id = $doctor->id;
+                
+                // Get the next available queue number for this doctor on this date
+                $maxQueueNumber = QueueEntry::where('doctor_id', $doctor->id)
+                    ->whereDate('queue_date', $entry->queue_date)
+                    ->max('queue_number') ?? 0;
+                
+                $entry->queue_number = $maxQueueNumber + 1;
+            }
+            
             $entry->consultation_started_at = now();
             $entry->called_at = now();
+            
+            // Also update the appointment's doctor if not set
+            if ($entry->appointment && !$entry->appointment->doctor_id) {
+                $entry->appointment->doctor_id = $doctor->id;
+                $entry->appointment->save();
+            }
         }
 
         if ($validated['status'] === 'completed') {
             $entry->checked_out_at = now();
             $entry->completed_at = now();
+            
+            // Update appointment status as well
+            if ($entry->appointment) {
+                $entry->appointment->status = 'completed';
+                $entry->appointment->save();
+            }
         }
 
         $entry->save();
@@ -132,6 +184,15 @@ class DoctorQueueController extends Controller
                 $q->where('doctor_id', $doctor->id)
                   ->orWhereHas('appointment', function ($aq) use ($doctor) {
                       $aq->where('doctor_id', $doctor->id);
+                  })
+                  ->orWhere(function ($uq) {
+                      $uq->whereNull('doctor_id')
+                         ->where(function ($apq) {
+                             $apq->whereDoesntHave('appointment')
+                                 ->orWhereHas('appointment', function ($aq) {
+                                     $aq->whereNull('doctor_id');
+                                 });
+                         });
                   });
             })
             ->whereDate('queue_date', $date)
@@ -160,6 +221,15 @@ class DoctorQueueController extends Controller
                 $q->where('doctor_id', $doctor->id)
                   ->orWhereHas('appointment', function ($aq) use ($doctor) {
                       $aq->where('doctor_id', $doctor->id);
+                  })
+                  ->orWhere(function ($uq) {
+                      $uq->whereNull('doctor_id')
+                         ->where(function ($apq) {
+                             $apq->whereDoesntHave('appointment')
+                                 ->orWhereHas('appointment', function ($aq) {
+                                     $aq->whereNull('doctor_id');
+                                 });
+                         });
                   });
             })
             ->whereDate('queue_date', $date)
@@ -171,10 +241,18 @@ class DoctorQueueController extends Controller
             return response()->json(['message' => 'No patients waiting in queue.'], 404);
         }
 
+        // Assign this doctor to the entry
+        $entry->doctor_id = $doctor->id;
         $entry->status = 'in_consultation';
         $entry->consultation_started_at = now();
         $entry->called_at = now();
         $entry->save();
+        
+        // Also update the appointment's doctor if not set
+        if ($entry->appointment && !$entry->appointment->doctor_id) {
+            $entry->appointment->doctor_id = $doctor->id;
+            $entry->appointment->save();
+        }
 
         return response()->json($entry->fresh()->load(['patient', 'patient.patientProfile', 'appointment']));
     }

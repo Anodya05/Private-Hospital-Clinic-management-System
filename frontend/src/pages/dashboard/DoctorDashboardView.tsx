@@ -39,7 +39,7 @@ import type {
 } from '../../types/doctor';
 import type { AuthUser } from '../../types/auth';
 
-type SectionKey = 'overview' | 'appointments' | 'queue' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
+type SectionKey = 'overview' | 'queue' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
 
 const safeParseJson = (value: string | null) => {
   if (!value) return null;
@@ -102,6 +102,8 @@ const DoctorDashboardView: React.FC = () => {
   const [prescriptionSaving, setPrescriptionSaving] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventory, setInventory] = useState<DoctorInventoryItem[]>([]);
+  const [clinics, setClinics] = useState<{ id: number; name: string }[]>([]);
+  const [clinicsLoading, setClinicsLoading] = useState(false);
 
   const [labsPatientId, setLabsPatientId] = useState('');
   const [labsLoading, setLabsLoading] = useState(false);
@@ -111,6 +113,7 @@ const DoctorDashboardView: React.FC = () => {
   const [labOrderForm, setLabOrderForm] = useState({
     patient_id: '',
     appointment_id: '',
+    clinic_id: '',
     test_type: '',
     test_description: '',
     order_date: new Date().toISOString().slice(0, 10),
@@ -170,6 +173,12 @@ const DoctorDashboardView: React.FC = () => {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
   const [callingNext, setCallingNext] = useState(false);
+
+  // Current patient in consultation (derived from queue)
+  const currentPatientInConsultation = useMemo(() => 
+    queueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress') || null,
+    [queueEntries]
+  );
 
   const getPatientName = (entry: QueueEntry): string => {
     if (entry.patient) {
@@ -417,9 +426,34 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  const loadClinics = async () => {
+    if (clinicsLoading) return;
+    if (clinics.length > 0) return;
+
+    setClinicsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.CLINICS, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setClinics(Array.isArray(data) ? data : (data.data || []));
+      }
+    } catch (e: any) {
+      console.error('Failed to load clinics', e);
+    } finally {
+      setClinicsLoading(false);
+    }
+  };
+
   const openPrescriptionModal = async () => {
     setPrescriptionModalOpen(true);
     await loadInventory();
+    await loadClinics();
   };
 
   const createPrescription = async (payload: CreatePrescriptionPayload) => {
@@ -460,11 +494,13 @@ const DoctorDashboardView: React.FC = () => {
     if (labOrderForm.test_type.trim() === '') return;
 
     const appointmentIdRaw = labOrderForm.appointment_id.trim() === '' ? null : Number(labOrderForm.appointment_id);
+    const clinicIdRaw = labOrderForm.clinic_id.trim() === '' ? null : Number(labOrderForm.clinic_id);
     const dueDateValue = labOrderForm.due_date.trim() === '' ? null : labOrderForm.due_date;
 
     const payload: CreateLabOrderPayload = {
       patient_id: patientId,
       appointment_id: Number.isFinite(appointmentIdRaw as any) ? (appointmentIdRaw as number) : null,
+      clinic_id: Number.isFinite(clinicIdRaw as any) ? (clinicIdRaw as number) : null,
       test_type: labOrderForm.test_type.trim(),
       test_description: labOrderForm.test_description.trim() === '' ? null : labOrderForm.test_description.trim(),
       order_date: labOrderForm.order_date,
@@ -478,7 +514,7 @@ const DoctorDashboardView: React.FC = () => {
     try {
       await doctorApi.labs.createOrder(payload);
       setLabOrderModalOpen(false);
-      setLabOrderForm((p) => ({ ...p, test_type: '', test_description: '', notes: '', instructions: '' }));
+      setLabOrderForm((p) => ({ ...p, test_type: '', test_description: '', clinic_id: '', notes: '', instructions: '' }));
       if (labsPatientId.trim() === String(patientId)) {
         await loadLabResults();
       }
@@ -664,13 +700,6 @@ const DoctorDashboardView: React.FC = () => {
           <span className="text-sm font-medium">Overview</span>
         </button>
         <button
-          onClick={() => setActive('appointments')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'appointments' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
-        >
-          <Calendar className="w-5 h-5" />
-          <span className="text-sm font-medium">Appointments</span>
-        </button>
-        <button
           onClick={() => setActive('queue')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'queue' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
         >
@@ -734,7 +763,6 @@ const DoctorDashboardView: React.FC = () => {
           {(
             [
               ['overview', 'Overview', LayoutDashboard],
-              ['appointments', 'Appointments', Calendar],
               ['queue', 'Patient Queue', Users],
               ['consultation', 'Consultation', Video],
               ['ehr', 'EHR', FileText],
@@ -840,12 +868,12 @@ const DoctorDashboardView: React.FC = () => {
                     className="bg-white rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8"
                   >
                     <div className="mb-6">
-                      <Calendar className="w-12 h-12 text-teal-500 mb-4" />
-                      <h2 className="text-xl font-bold text-gray-800 mb-3">Appointments</h2>
-                      <p className="text-gray-600">View daily & upcoming appointments</p>
+                      <Users className="w-12 h-12 text-teal-500 mb-4" />
+                      <h2 className="text-xl font-bold text-gray-800 mb-3">Patient Queue</h2>
+                      <p className="text-gray-600">View and manage waiting patients</p>
                     </div>
                     <button
-                      onClick={() => setActive('appointments')}
+                      onClick={() => setActive('queue')}
                       className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
                     >
                       View
@@ -988,108 +1016,6 @@ const DoctorDashboardView: React.FC = () => {
               </div>
             )}
 
-            {active === 'appointments' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
-                    <p className="text-gray-600 text-sm">Filter and manage your schedule</p>
-                  </div>
-                  <button
-                    onClick={() => refreshAppointments(appointmentFilters)}
-                    className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                      <input
-                        type="date"
-                        value={appointmentFilters.date}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, date: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Patient</label>
-                      <input
-                        type="text"
-                        value={appointmentFilters.patient_name}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, patient_name: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="Search name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <select
-                        value={appointmentFilters.status}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, status: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      >
-                        <option value="">All</option>
-                        <option value="scheduled">scheduled</option>
-                        <option value="completed">completed</option>
-                        <option value="cancelled">cancelled</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => refreshAppointments(appointmentFilters)}
-                        className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <AppointmentTable
-                  appointments={appointments}
-                  loading={appointmentsLoading}
-                  onView={(appt) => setSelectedAppointment(appt)}
-                  onOpenEhr={(pid) => {
-                    setActive('ehr');
-                    setEhrPatientId(String(pid));
-                    loadEhr(pid);
-                  }}
-                  onStartConsultation={openConsultation}
-                  onUpdateStatus={updateAppointmentStatus}
-                />
-
-                {selectedAppointment && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div>
-                        <div className="text-sm text-gray-600">Selected Appointment</div>
-                        <div className="text-lg font-semibold text-gray-900">
-                          #{selectedAppointment.id} - {selectedAppointment.appointment_date} {(selectedAppointment.appointment_time || '').slice(0, 5)}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openConsultation(selectedAppointment)}
-                          className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                        >
-                          Start Consultation
-                        </button>
-                        <button
-                          onClick={() => setSelectedAppointment(null)}
-                          className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {active === 'consultation' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1137,13 +1063,14 @@ const DoctorDashboardView: React.FC = () => {
                           Open EHR
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             setLabOrderForm((p) => ({
                               ...p,
                               patient_id: String(selectedAppointment.patient_id),
                               appointment_id: String(selectedAppointment.id),
                             }));
                             setLabOrderModalOpen(true);
+                            await loadClinics();
                           }}
                           className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
                         >
@@ -1440,12 +1367,13 @@ const DoctorDashboardView: React.FC = () => {
                     <p className="text-gray-600 text-sm">Create orders and review patient results</p>
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setLabOrderForm((p) => ({
                         ...p,
                         patient_id: labsPatientId,
                       }));
                       setLabOrderModalOpen(true);
+                      await loadClinics();
                     }}
                     className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
                   >
@@ -1477,6 +1405,51 @@ const DoctorDashboardView: React.FC = () => {
 
                 {labData && (
                   <div className="space-y-6">
+                    {/* Lab Orders Section */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Lab Orders</h3>
+                      {labData.orders.length === 0 ? (
+                        <div className="text-gray-600">No lab orders found.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Type</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {labData.orders.map((order) => (
+                                <tr key={order.id} className="hover:bg-gray-50">
+                                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{order.order_number}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900">{order.test_type}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.test_description || '-'}</td>
+                                  <td className="px-6 py-4">
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      order.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {order.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.order_date}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.due_date || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Lab Results Section */}
                     <div className="bg-white rounded-lg shadow-lg p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Results</h3>
                       {labData.results.length === 0 ? (
@@ -1545,10 +1518,136 @@ const DoctorDashboardView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Current Patient Card */}
+                {(() => {
+                  const currentPatient = queueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress');
+                  const nextPatient = queueEntries.find(e => e.status === 'waiting');
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Current Patient */}
+                      <div className={`p-6 rounded-lg shadow-lg ${currentPatient ? 'bg-teal-50 border-2 border-teal-500' : 'bg-gray-50'}`}>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Current Patient</h3>
+                        {currentPatient ? (
+                          <div>
+                            <p className="text-2xl font-bold text-teal-700">{getPatientName(currentPatient)}</p>
+                            <p className="text-sm text-gray-600 mt-1">Queue #{currentPatient.queue_number} | Patient ID: {currentPatient.patient_id}</p>
+                            {currentPatient.appointment && (
+                              <p className="text-sm text-gray-500">Appointment: {currentPatient.appointment.appointment_time}</p>
+                            )}
+                            
+                            {/* Action Buttons for Current Patient */}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                onClick={async () => {
+                                  setLabOrderForm((p) => ({
+                                    ...p,
+                                    patient_id: String(currentPatient.patient_id),
+                                    appointment_id: currentPatient.appointment_id ? String(currentPatient.appointment_id) : '',
+                                  }));
+                                  setLabOrderModalOpen(true);
+                                  await loadClinics();
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Lab Test
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  // Set patient context for prescription
+                                  setSelectedAppointment({
+                                    id: currentPatient.appointment_id || 0,
+                                    patient_id: currentPatient.patient_id,
+                                    patient: currentPatient.patient,
+                                  } as any);
+                                  await openPrescriptionModal();
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Prescription
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setReferralForm((p) => ({ ...p, patient_id: String(currentPatient.patient_id) }));
+                                  setReferralModalOpen(true);
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Refer to Clinic
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEhrPatientId(String(currentPatient.patient_id));
+                                  loadEhr(currentPatient.patient_id);
+                                  setActive('ehr');
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                View EHR
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => updateQueueStatus(currentPatient.id as number, 'completed')}
+                              className="mt-4 bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-md transition w-full"
+                            >
+                              Mark Complete
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">No patient in consultation</p>
+                        )}
+                      </div>
+
+                      {/* Next Patient */}
+                      <div className={`p-6 rounded-lg shadow-lg ${nextPatient ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-gray-50'}`}>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Next Patient</h3>
+                        {nextPatient ? (
+                          <div>
+                            <p className="text-2xl font-bold text-yellow-700">{getPatientName(nextPatient)}</p>
+                            <p className="text-sm text-gray-600 mt-1">Queue #{nextPatient.queue_number}</p>
+                            {nextPatient.appointment && (
+                              <p className="text-sm text-gray-500">Appointment: {nextPatient.appointment.appointment_time}</p>
+                            )}
+                            <button
+                              onClick={() => updateQueueStatus(nextPatient.id as number, 'in_consultation')}
+                              className="mt-4 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                            >
+                              Start Consultation
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">No patients waiting</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Queue Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-yellow-600">{queueEntries.filter(e => e.status === 'waiting').length}</p>
+                    <p className="text-sm text-gray-600">Waiting</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-teal-600">{queueEntries.filter(e => e.status === 'in_consultation' || e.status === 'in_progress').length}</p>
+                    <p className="text-sm text-gray-600">In Consultation</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-green-600">{queueEntries.filter(e => e.status === 'completed').length}</p>
+                    <p className="text-sm text-gray-600">Completed Today</p>
+                  </div>
+                </div>
+
                 {queueLoading ? (
                   <div className="text-center py-12">Loading...</div>
                 ) : (
                   <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
+                      <h3 className="font-semibold text-gray-700">Waiting Queue</h3>
+                      <span className="text-sm text-gray-500">{queueEntries.filter(e => e.status === 'waiting' || e.status === 'in_consultation' || e.status === 'in_progress').length} patients</span>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-gray-50">
@@ -1562,16 +1661,21 @@ const DoctorDashboardView: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {queueEntries.length === 0 ? (
+                          {queueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').length === 0 ? (
                             <tr>
                               <td colSpan={6} className="px-6 py-8 text-center text-gray-600">
                                 No patients in queue.
                               </td>
                             </tr>
                           ) : (
-                            queueEntries.map((entry) => (
-                              <tr key={entry.id} className={`hover:bg-gray-50 ${entry.status === 'in_consultation' || entry.status === 'in_progress' ? 'bg-teal-50' : ''}`}>
-                                <td className="px-6 py-4 text-sm font-medium text-gray-900">{entry.queue_number ?? '-'}</td>
+                            queueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').map((entry, index) => (
+                              <tr key={entry.id} className={`hover:bg-gray-50 ${entry.status === 'in_consultation' || entry.status === 'in_progress' ? 'bg-teal-50' : index === 0 && entry.status === 'waiting' ? 'bg-yellow-50' : ''}`}>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                  {entry.queue_number ?? '-'}
+                                  {index === 0 && entry.status === 'waiting' && (
+                                    <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded">NEXT</span>
+                                  )}
+                                </td>
                                 <td className="px-6 py-4 text-sm text-gray-600">{getPatientName(entry)}</td>
                                 <td className="px-6 py-4 text-sm text-gray-600">
                                   {entry.appointment ? (
@@ -1594,30 +1698,73 @@ const DoctorDashboardView: React.FC = () => {
                                    entry.appointment?.appointment_time || '-'}
                                 </td>
                                 <td className="px-6 py-4 text-sm">
-                                  {(entry.status === 'waiting' || entry.status === 'scheduled') && typeof entry.id === 'number' && (
-                                    <button
-                                      onClick={() => updateQueueStatus(entry.id as number, 'in_consultation')}
-                                      className="text-teal-600 hover:text-teal-800 font-medium mr-3"
-                                    >
-                                      Start
-                                    </button>
-                                  )}
-                                  {(entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
-                                    <button
-                                      onClick={() => updateQueueStatus(entry.id as number, 'completed')}
-                                      className="text-green-600 hover:text-green-800 font-medium mr-3"
-                                    >
-                                      Complete
-                                    </button>
-                                  )}
-                                  {(entry.status === 'waiting' || entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
-                                    <button
-                                      onClick={() => updateQueueStatus(entry.id as number, 'no_show')}
-                                      className="text-red-600 hover:text-red-800 font-medium"
-                                    >
-                                      No Show
-                                    </button>
-                                  )}
+                                  <div className="flex flex-wrap gap-1">
+                                    {(entry.status === 'waiting' || entry.status === 'scheduled') && typeof entry.id === 'number' && (
+                                      <button
+                                        onClick={() => updateQueueStatus(entry.id as number, 'in_consultation')}
+                                        className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+                                    {(entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                      <>
+                                        <button
+                                          onClick={async () => {
+                                            setLabOrderForm((p) => ({
+                                              ...p,
+                                              patient_id: String(entry.patient_id),
+                                              appointment_id: entry.appointment_id ? String(entry.appointment_id) : '',
+                                            }));
+                                            setLabOrderModalOpen(true);
+                                            await loadClinics();
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Order Lab Test"
+                                        >
+                                          Lab
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            setSelectedAppointment({
+                                              id: entry.appointment_id || 0,
+                                              patient_id: entry.patient_id,
+                                              patient: entry.patient,
+                                            } as any);
+                                            await openPrescriptionModal();
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Create Prescription"
+                                        >
+                                          Rx
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setReferralForm((p) => ({ ...p, patient_id: String(entry.patient_id) }));
+                                            setReferralModalOpen(true);
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Refer to Clinic"
+                                        >
+                                          Refer
+                                        </button>
+                                        <button
+                                          onClick={() => updateQueueStatus(entry.id as number, 'completed')}
+                                          className="text-teal-700 hover:text-teal-900 font-medium text-xs bg-teal-50 hover:bg-teal-100 px-2 py-1 rounded border border-teal-300"
+                                        >
+                                          Done
+                                        </button>
+                                      </>
+                                    )}
+                                    {(entry.status === 'waiting' || entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                      <button
+                                        onClick={() => updateQueueStatus(entry.id as number, 'no_show')}
+                                        className="text-gray-600 hover:text-gray-800 font-medium text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded border border-gray-300"
+                                      >
+                                        No Show
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))
@@ -1751,8 +1898,9 @@ const DoctorDashboardView: React.FC = () => {
 
         <PrescriptionForm
           open={prescriptionModalOpen}
-          saving={prescriptionSaving || inventoryLoading}
+          saving={prescriptionSaving || inventoryLoading || clinicsLoading}
           inventory={inventory}
+          clinics={clinics}
           initialPatientId={selectedAppointment?.patient_id ?? null}
           initialAppointmentId={selectedAppointment?.id ?? null}
           onClose={() => {
@@ -1787,16 +1935,18 @@ const DoctorDashboardView: React.FC = () => {
                       required
                       value={labOrderForm.patient_id}
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, patient_id: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      readOnly={labOrderForm.patient_id !== ''}
+                      className={`w-full px-3 py-2 border rounded-lg ${labOrderForm.patient_id !== '' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID (optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID</label>
                     <input
                       type="number"
                       value={labOrderForm.appointment_id}
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, appointment_id: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      readOnly={labOrderForm.appointment_id !== ''}
+                      className={`w-full px-3 py-2 border rounded-lg ${labOrderForm.appointment_id !== '' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
@@ -1819,6 +1969,21 @@ const DoctorDashboardView: React.FC = () => {
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, order_date: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg"
                     />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Assign to Clinic</label>
+                    <select
+                      value={labOrderForm.clinic_id}
+                      onChange={(e) => setLabOrderForm((p) => ({ ...p, clinic_id: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="">-- No Clinic --</option>
+                      {clinics.map((clinic) => (
+                        <option key={clinic.id} value={String(clinic.id)}>
+                          {clinic.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Test Description</label>

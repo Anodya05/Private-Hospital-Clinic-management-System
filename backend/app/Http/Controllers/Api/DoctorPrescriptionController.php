@@ -25,6 +25,7 @@ class DoctorPrescriptionController extends Controller
         $validated = $request->validate([
             'patient_id' => ['required', 'integer', 'exists:users,id'],
             'appointment_id' => ['nullable', 'integer', 'exists:appointments,id'],
+            'clinic_id' => ['nullable', 'integer', 'exists:clinics,id'],
             'prescription_date' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'instructions' => ['nullable', 'string', 'max:2000'],
@@ -46,6 +47,7 @@ class DoctorPrescriptionController extends Controller
                 'prescription_number' => $prescriptionNumber,
                 'patient_id' => $validated['patient_id'],
                 'doctor_id' => $doctor->id,
+                'clinic_id' => $validated['clinic_id'] ?? null,
                 'prescription_date' => $validated['prescription_date'],
                 'status' => 'pending',
                 'notes' => $validated['notes'] ?? null,
@@ -71,7 +73,7 @@ class DoctorPrescriptionController extends Controller
 
             DB::commit();
 
-            return response()->json($prescription->load(['patient', 'doctor', 'items.inventoryItem']), 201);
+            return response()->json($prescription->load(['patient', 'doctor', 'clinic', 'items.inventoryItem']), 201);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Failed to create prescription: ' . $e->getMessage()], 500);

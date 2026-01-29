@@ -99,6 +99,9 @@ export const API_ENDPOINTS = {
   DOCTOR_QUEUE_NEXT: `${API_BASE_URL}/api/doctor/queue/next`,
   DOCTOR_QUEUE_CALL_NEXT: `${API_BASE_URL}/api/doctor/queue/call-next`,
   DOCTOR_QUEUE_STATUS: (id: string) => `${API_BASE_URL}/api/doctor/queue/${id}/status`,
+
+  // Clinics
+  CLINICS: `${API_BASE_URL}/api/clinics`,
 };
 
 export default API_BASE_URL;

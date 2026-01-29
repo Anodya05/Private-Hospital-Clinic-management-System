@@ -9,6 +9,11 @@ export interface InventoryOption {
   brand_name?: string | null;
 }
 
+export interface ClinicOption {
+  id: number;
+  name: string;
+}
+
 interface ItemRow {
   inventory_item_id: string;
   quantity: string;
@@ -22,6 +27,7 @@ export interface PrescriptionFormProps {
   open: boolean;
   saving: boolean;
   inventory: InventoryOption[];
+  clinics: ClinicOption[];
   initialPatientId?: number | null;
   initialAppointmentId?: number | null;
   onClose: () => void;
@@ -32,6 +38,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
   open,
   saving,
   inventory,
+  clinics,
   initialPatientId,
   initialAppointmentId,
   onClose,
@@ -39,6 +46,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
 }) => {
   const [patientId, setPatientId] = useState('');
   const [appointmentId, setAppointmentId] = useState('');
+  const [clinicId, setClinicId] = useState('');
   const [prescriptionDate, setPrescriptionDate] = useState('');
   const [notes, setNotes] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -50,6 +58,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
     if (!open) return;
     setPatientId(initialPatientId ? String(initialPatientId) : '');
     setAppointmentId(initialAppointmentId ? String(initialAppointmentId) : '');
+    setClinicId('');
     setPrescriptionDate(new Date().toISOString().slice(0, 10));
     setNotes('');
     setInstructions('');
@@ -112,6 +121,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
     const payload: CreatePrescriptionPayload = {
       patient_id: pid,
       appointment_id: Number.isFinite(apptIdRaw as any) ? (apptIdRaw as number) : null,
+      clinic_id: clinicId.trim() === '' ? null : Number(clinicId),
       prescription_date: prescriptionDate,
       notes: notes.trim() === '' ? null : notes.trim(),
       instructions: instructions.trim() === '' ? null : instructions.trim(),
@@ -138,7 +148,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
         </div>
 
         <form onSubmit={submit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Patient ID *</label>
               <input
@@ -146,17 +156,34 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
                 required
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                readOnly={!!initialPatientId}
+                className={`w-full px-3 py-2 border rounded-lg ${initialPatientId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID</label>
               <input
                 type="number"
                 value={appointmentId}
                 onChange={(e) => setAppointmentId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                readOnly={!!initialAppointmentId}
+                className={`w-full px-3 py-2 border rounded-lg ${initialAppointmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assign to Clinic</label>
+              <select
+                value={clinicId}
+                onChange={(e) => setClinicId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="">-- No Clinic --</option>
+                {clinics.map((clinic) => (
+                  <option key={clinic.id} value={String(clinic.id)}>
+                    {clinic.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Prescription Date *</label>

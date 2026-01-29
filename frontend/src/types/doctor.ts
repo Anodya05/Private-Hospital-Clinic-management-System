@@ -265,6 +265,7 @@ export interface DoctorPrescriptionsResponse {
 export interface CreatePrescriptionPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   prescription_date: string;
   notes?: string | null;
   instructions?: string | null;
@@ -331,6 +332,7 @@ export interface LabOrdersAndResultsResponse {
 export interface CreateLabOrderPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   test_type: string;
   test_description?: string | null;
   order_date: string;
