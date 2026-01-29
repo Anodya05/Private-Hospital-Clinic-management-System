@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\PatientProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -50,7 +51,7 @@ class AuthController extends Controller
         }
         $username = $usernameBase;
         $suffix = 1;
-        while (\App\Models\User::where('username', $username)->exists()) {
+        while (User::where('username', $username)->exists()) {
             $username = $usernameBase . $suffix;
             $suffix++;
         }
@@ -88,26 +89,18 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign role using Spatie Permission
+        // Assign role using Spatie Permission (and create if missing)
         SpatieRole::findOrCreate($roleName, 'sanctum');
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
-
-        // Get the user's role name
-        $userRole = $user->roles->first()?->name ?? 'patient';
 
         \Log::info('Registration successful for user', ['id' => $user->id, 'email' => $user->email]);
 
         return response()->json([
             'message' => 'Registration successful.',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $userRole,
-            ],
+            'user' => $this->formatUserData($user),
         ], 201);
     }
 
@@ -118,8 +111,8 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        // Since we only have email now, search by email only
-        $user = \App\Models\User::where('email', $credentials['login'])->first();
+        // Search by email only
+        $user = User::where('email', $credentials['login'])->first();
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
@@ -130,18 +123,10 @@ class AuthController extends Controller
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Get the user's role name
-        $userRole = $user->roles->first()?->name ?? 'patient';
-
         return response()->json([
             'message' => 'Login successful.',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $userRole,
-            ],
+            'user' => $this->formatUserData($user),
         ]);
     }
 
@@ -158,16 +143,37 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        // Get the user's role name
-        $userRole = $user->roles->first()?->name ?? 'patient';
-
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $userRole,
-            ],
+            'user' => $this->formatUserData($user),
         ]);
+    }
+
+    /**
+     * Helper to format user data consistently.
+     * Checks both 'role_id' relation and Spatie roles to find the correct role name.
+     */
+    private function formatUserData($user)
+    {
+        // Load the role relationship if it exists (for role_id)
+        $user->load('role');
+
+        // Determine role: Check role_id relation first, then Spatie, then default to patient
+        $roleName = 'patient';
+        
+        if ($user->role) {
+            $roleName = $user->role->name;
+        } elseif ($user->roles && $user->roles->first()) {
+            $roleName = $user->roles->first()->name;
+        }
+
+        return [
+            'id' => $user->id,
+            'first_name' => $user->first_name ?? $user->name,
+            'last_name' => $user->last_name ?? '',
+            'name' => $user->name ?? ($user->first_name . ' ' . $user->last_name),
+            'username' => $user->username,
+            'email' => $user->email,
+            'role' => $roleName, // This now returns a String (e.g., "admin"), not a number
+        ];
     }
 }
