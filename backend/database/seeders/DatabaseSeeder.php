@@ -125,6 +125,9 @@ class DatabaseSeeder extends Seeder
         $patient->syncRoles(['patient']);
 
         // Seed default clinics
-        $this->call([\Database\Seeders\ClinicSeeder::class]);
+        $this->call([
+            \Database\Seeders\ClinicSeeder::class,
+            \Database\Seeders\CreateMultipleUsersPerRoleSeeder::class,
+        ]);
     }
 }

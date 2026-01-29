@@ -101,6 +101,37 @@ class ReceptionistAppointmentController extends Controller
 
         $isWalkIn = (bool) ($validated['is_walk_in'] ?? false);
 
+        // Check for conflicting appointments at the same date and time for the same doctor
+        $doctorId = $validated['doctor_id'] ?? null;
+        if ($doctorId) {
+            $conflictingAppointment = Appointment::query()
+                ->where('doctor_id', $doctorId)
+                ->whereDate('appointment_date', $validated['appointment_date'])
+                ->where('appointment_time', $validated['appointment_time'])
+                ->whereNotIn('status', ['cancelled'])
+                ->first();
+
+            if ($conflictingAppointment) {
+                return response()->json([
+                    'message' => 'An appointment already exists for this doctor at the selected date and time. Please choose a different time slot.',
+                ], 422);
+            }
+        }
+
+        // Check if the patient already has an appointment at this time
+        $patientConflict = Appointment::query()
+            ->where('patient_id', $patientId)
+            ->whereDate('appointment_date', $validated['appointment_date'])
+            ->where('appointment_time', $validated['appointment_time'])
+            ->whereNotIn('status', ['cancelled'])
+            ->first();
+
+        if ($patientConflict) {
+            return response()->json([
+                'message' => 'This patient already has an appointment at the selected date and time.',
+            ], 422);
+        }
+
         return DB::transaction(function () use ($validated, $patientId, $isWalkIn, $request) {
             $appointmentDate = $validated['appointment_date'];
 
@@ -136,9 +167,15 @@ class ReceptionistAppointmentController extends Controller
             $queueEntry = null;
 
             if (! $alreadyInQueue) {
+                $doctorIdForQueue = $validated['doctor_id'] ?? null;
+                
                 $lastQueueNumber = QueueEntry::query()
                     ->whereDate('queue_date', $queueDate)
-                    ->whereNull('doctor_id')
+                    ->when($doctorIdForQueue, function ($q) use ($doctorIdForQueue) {
+                        return $q->where('doctor_id', $doctorIdForQueue);
+                    }, function ($q) {
+                        return $q->whereNull('doctor_id');
+                    })
                     ->orderByDesc('queue_number')
                     ->lockForUpdate()
                     ->value('queue_number');
@@ -148,7 +185,7 @@ class ReceptionistAppointmentController extends Controller
                 $queueEntry = QueueEntry::create([
                     'appointment_id' => $appointment->id,
                     'patient_id' => $patientId,
-                    'doctor_id' => null,
+                    'doctor_id' => $doctorIdForQueue,
                     'queue_date' => $queueDate,
                     'queue_number' => $nextQueueNumber,
                     'status' => 'waiting',

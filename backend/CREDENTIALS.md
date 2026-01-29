@@ -37,7 +37,7 @@ The following 5 roles have been registered:
 ### 4. Receptionist User
 - **Email:** receptionist@mediclinic.com
 - **Username:** receptionist
-- **Password:** receptionist123
+- **Password:** 
 - **Role:** receptionist
 - **Name:** Emily Brown
 
