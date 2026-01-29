@@ -1,13 +1,15 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role as SpatieRole;
 use Spatie\Permission\PermissionRegistrar;
@@ -39,13 +41,29 @@ class AuthController extends Controller
 
         $roleName = 'patient';
 
-        $parts = preg_split('/\s+/', trim($data['name']));
-        $firstName = $parts[0] ?? '';
-        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'Patient';
+        // Split full name into first and last
+        $fullName = trim($data['name']);
+        $parts = preg_split('/\s+/', $fullName) ?: [];
+        $firstName = $parts[0] ?? $fullName;
+        $lastName = count($parts) > 1 ? trim(implode(' ', array_slice($parts, 1))) : 'Patient';
 
+        // Generate unique username
+        $usernameBase = Str::slug($firstName . ' ' . $lastName, '');
+        if ($usernameBase === '') {
+            $usernameBase = 'user';
+        }
+        $username = $usernameBase;
+        $suffix = 1;
+        while (User::where('username', $username)->exists()) {
+            $username = $usernameBase . $suffix;
+            $suffix++;
+        }
+
+        // Build user data
         $userData = [
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
+            'username' => $username,
         ];
 
         if (Schema::hasColumn('users', 'name')) {
@@ -57,6 +75,7 @@ class AuthController extends Controller
 
         $user = User::create($userData);
 
+        // Create patient profile
         PatientProfile::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
@@ -73,12 +92,14 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign Role and clear Spatie cache
+        // Assign role and clear Spatie cache
         SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        Log::info('Registration successful', ['id' => $user->id, 'email' => $user->email]);
 
         return response()->json([
             'message' => 'Registration successful',
@@ -88,7 +109,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Login with Self-Healing
+     * Login with self-healing
      */
     public function login(Request $request)
     {
@@ -105,15 +126,12 @@ class AuthController extends Controller
             ]);
         }
 
-        // SELF-HEALING: assign role if missing
+        // Auto-assign role if missing
         if ($user->getRoleNames()->isEmpty()) {
             Log::warning("User {$user->email} has no roles. Auto-assigning 'patient'.");
-
             app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
             SpatieRole::firstOrCreate(['name' => 'patient', 'guard_name' => 'web']);
             $user->assignRole('patient');
-
             $user = $user->fresh();
         }
 
@@ -127,6 +145,9 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Return logged-in user data
+     */
     public function me(Request $request)
     {
         $user = $request->user();
@@ -136,15 +157,20 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Logout user
+     */
     public function logout(Request $request)
     {
         $request->user()?->tokens()->delete();
 
-        return response()->json(['message' => 'Logged out']);
+        return response()->json([
+            'message' => 'Logged out',
+        ]);
     }
 
     /**
-     * Helper to format user data consistently
+     * Format user data consistently
      */
     private function formatUserData($user)
     {

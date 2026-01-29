@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles; // Important: Spatie Role trait
+use Spatie\Permission\Traits\HasRoles; // Spatie Role trait
 use App\Models\Role;
 use App\Models\PatientProfile;
 use App\Models\Clinic;
@@ -18,47 +18,9 @@ class User extends Authenticatable
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
     /**
-     * Auto-generate name if not provided
-     */
-    protected static function booted(): void
-    {
-        static::creating(function (User $user) {
-            if (empty($user->name)) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                if ($fallback === '') {
-                    $fallback = $user->username ?? 'user';
-                }
-                $user->name = $fallback;
-            }
-        });
-
-        static::updating(function (User $user) {
-            if (array_key_exists('name', $user->getDirty()) && $user->name === null) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                if ($fallback === '') {
-                    $fallback = $user->username ?? 'user';
-                }
-                $user->name = $fallback;
-            }
-        });
-
-        // Ensure role assignment on creation if role_id exists
-        static::created(function (User $user) {
-            if ($user->role_id && $user->roles->isEmpty()) {
-                $role = \Spatie\Permission\Models\Role::findById($user->role_id);
-                if ($role) {
-                    $user->assignRole($role->name);
-                    $user->refresh();
-                }
-            }
-        });
-    }
-
-    /**
      * Mass assignable attributes
      */
     protected $fillable = [
-        'name',
         'first_name',
         'last_name',
         'username',
@@ -88,8 +50,44 @@ class User extends Authenticatable
     ];
 
     /**
+     * Boot method to handle auto-filling name and assigning Spatie role
+     */
+    protected static function booted(): void
+    {
+        // Auto-generate name if missing
+        static::creating(function (User $user) {
+            if (empty($user->name)) {
+                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                $user->name = $fallback !== '' ? $fallback : ($user->username ?? 'User');
+            }
+        });
+
+        static::updating(function (User $user) {
+            if (array_key_exists('name', $user->getDirty()) && $user->name === null) {
+                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                $user->name = $fallback !== '' ? $fallback : ($user->username ?? 'User');
+            }
+        });
+
+        // Assign Spatie role automatically if role_id is set
+        static::created(function (User $user) {
+            if ($user->role_id && $user->roles->isEmpty()) {
+                try {
+                    $role = \Spatie\Permission\Models\Role::findById($user->role_id);
+                    if ($role) {
+                        $user->assignRole($role->name);
+                        $user->refresh();
+                    }
+                } catch (\Exception $e) {
+                    // Fail silently or log error
+                    \Log::warning("Role assignment failed for user {$user->id}: " . $e->getMessage());
+                }
+            }
+        });
+    }
+
+    /**
      * Role relationship (users.role_id → roles.id)
-     * Note: This is your custom role relation; Spatie uses roles() plural.
      */
     public function role(): BelongsTo
     {
@@ -114,13 +112,15 @@ class User extends Authenticatable
 
     /**
      * Safe name accessor
+     * Combines first_name + last_name or falls back to username
      */
     public function getNameAttribute(): string
     {
-        if (!empty($this->attributes['name'])) {
-            return (string) $this->attributes['name'];
+        if (isset($this->attributes['name']) && $this->attributes['name'] !== null) {
+            return (string)$this->attributes['name'];
         }
 
-        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        $fullName = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        return $fullName !== '' ? $fullName : ($this->username ?? 'User');
     }
 }

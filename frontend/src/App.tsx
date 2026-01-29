@@ -6,16 +6,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
 
-// --- Home Page Components ---
-import HeroSection from './components/HomePage/HeroSection';
-import QuickActionsBar from './components/HomePage/QuickActionsBar';
-import FeaturesGrid from './components/HomePage/FeaturesGrid';
-import ServicesSection from './components/HomePage/ServicesSection';
-import WhyChooseUs from './components/HomePage/WhyChooseUs';
-import TestimonialsSection from './components/HomePage/TestimonialsSection';
-import TelemedicinePromo from './components/HomePage/TelemedicinePromo';
-import Footer from './components/HomePage/Footer';
-
 // --- Dashboard Imports ---
 import ReceptionistPatientRegistration from './pages/ReceptionistPatientRegistration';
 import PatientDashboard from './pages/dashboard/PatientDashboard';
@@ -29,6 +19,16 @@ import PrescriptionProcessingView from './pages/pharmacy/PrescriptionProcessingV
 import InventoryManagement from './pages/pharmacy/InventoryManagement';
 import SupplierManagement from './pages/pharmacy/SupplierManagement';
 import DrugPurchaseManagement from './pages/pharmacy/DrugPurchaseManagement';
+
+// --- Home Page Components ---
+import HeroSection from './components/HomePage/HeroSection';
+import QuickActionsBar from './components/HomePage/QuickActionsBar';
+import FeaturesGrid from './components/HomePage/FeaturesGrid';
+import ServicesSection from './components/HomePage/ServicesSection';
+import WhyChooseUs from './components/HomePage/WhyChooseUs';
+import TestimonialsSection from './components/HomePage/TestimonialsSection';
+import TelemedicinePromo from './components/HomePage/TelemedicinePromo';
+import Footer from './components/HomePage/Footer';
 
 type ChildrenProps = { children: React.ReactNode };
 
@@ -77,108 +77,54 @@ const App: React.FC = () => (
     {/* Protected routes */}
     <Route
       path="/admin"
-      element={(
-        <RequireAuth>
-          <AdminDashboard />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><AdminDashboard /></RequireAuth>}
     />
-
     <Route
       path="/doctor"
-      element={(
-        <RequireAuth>
-          <DoctorDashboard />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><DoctorDashboard /></RequireAuth>}
     />
-
     <Route
       path="/patient"
-      element={(
-        <RequireAuth>
-          <RequireRole role="patient">
-            <PatientDashboard />
-          </RequireRole>
-        </RequireAuth>
-      )}
+      element={<RequireAuth><RequireRole role="patient"><PatientDashboard /></RequireRole></RequireAuth>}
     />
-
     <Route
       path="/portal"
-      element={(
-        <RequireAuth>
-          <PortalPage />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><PortalPage /></RequireAuth>}
     />
-
     <Route
       path="/receptionist"
-      element={(
-        <RequireAuth>
-          <ReceptionistDashboard />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><ReceptionistDashboard /></RequireAuth>}
     />
-
     <Route
       path="/receptionist/register-patient"
-      element={(
-        <RequireAuth>
-          <ReceptionistPatientRegistration />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><ReceptionistPatientRegistration /></RequireAuth>}
     />
-
     <Route
       path="/pharmacist"
-      element={(
-        <RequireAuth>
-          <PharmacistDashboard />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><PharmacistDashboard /></RequireAuth>}
     />
 
+    {/* --- Pharmacy Sub-Pages --- */}
     <Route
       path="/pharmacist/prescriptions"
-      element={(
-        <RequireAuth>
-          <PrescriptionProcessingView />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><PrescriptionProcessingView /></RequireAuth>}
     />
-
     <Route
       path="/pharmacist/inventory"
-      element={(
-        <RequireAuth>
-          <InventoryManagement />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><InventoryManagement /></RequireAuth>}
     />
-
     <Route
       path="/pharmacist/suppliers"
-      element={(
-        <RequireAuth>
-          <SupplierManagement />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><SupplierManagement /></RequireAuth>}
     />
-
     <Route
       path="/pharmacist/purchases"
-      element={(
-        <RequireAuth>
-          <DrugPurchaseManagement />
-        </RequireAuth>
-      )}
+      element={<RequireAuth><DrugPurchaseManagement /></RequireAuth>}
     />
 
     {/* Catch-all: Redirect unknown links to Home */}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );
-export default App;
 
+export default App;
