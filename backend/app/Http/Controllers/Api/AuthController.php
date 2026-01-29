@@ -6,12 +6,11 @@ use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role as SpatieRole;
+use Spatie\Permission\PermissionRegistrar;
 
 class AuthController extends Controller
 {
@@ -20,13 +19,10 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        Log::info('Registration attempt', $request->all());
-
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['nullable', 'string', Rule::in(['patient'])],
             'date_of_birth' => ['nullable', 'date'],
             'phone' => ['nullable', 'string', 'max:20'],
             'gender' => ['nullable', 'string', 'in:male,female,other'],
@@ -41,41 +37,23 @@ class AuthController extends Controller
             'guardian_relationship' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $roleName = 'patient'; // patient-only signup
+        $roleName = 'patient';
 
-        // Process name into first/last
-        $fullName = trim($data['name']);
-        $parts = preg_split('/\s+/', $fullName) ?: [];
-        $firstName = $parts[0] ?? $fullName;
-        $lastName = count($parts) > 1 ? trim(implode(' ', array_slice($parts, 1))) : 'Patient';
+        // Split name safely
+        $parts = preg_split('/\s+/', trim($data['name']));
+        $firstName = $parts[0] ?? '';
+        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'Patient';
 
-        $usernameBase = Str::slug($firstName . ' ' . $lastName, '');
-        if ($usernameBase === '') $usernameBase = 'user';
-
-        $username = $usernameBase;
-        $suffix = 1;
-        while (User::where('username', $username)->exists()) {
-            $username = $usernameBase . $suffix;
-            $suffix++;
-        }
-
-        // Prepare user data
         $userData = [
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ];
 
-        // Flexible handling for database columns
         if (Schema::hasColumn('users', 'name')) {
-            $userData['name'] = $fullName;
+            $userData['name'] = $data['name'];
         } else {
             $userData['first_name'] = $firstName;
-            $userData['last_name'] = $lastName ?: 'Patient';
-        }
-        
-        // Only add username if the column exists
-        if (Schema::hasColumn('users', 'username')) {
-            $userData['username'] = $username;
+            $userData['last_name'] = $lastName;
         }
 
         $user = User::create($userData);
@@ -97,33 +75,32 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign role using Spatie Permission
-        SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']); 
+        // Assign Role
+        SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        Log::info('Registration successful', ['id' => $user->id, 'email' => $user->email]);
-
         return response()->json([
-            'message' => 'Registration successful.',
+            'message' => 'Registration successful',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
-                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
                 'email' => $user->email,
-                'roles' => $user->roles->pluck('name')->toArray(),
+                'roles' => $user->getRoleNames(), // Spatie method
             ],
         ], 201);
     }
 
     /**
-     * Login for all roles with Self-Healing
+     * Login with Self-Healing
      */
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'login' => ['required', 'string'], // email
+            'login' => ['required', 'string'],
             'password' => ['required', 'string'],
         ]);
 
@@ -131,73 +108,58 @@ class AuthController extends Controller
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'login' => ['The provided credentials are incorrect.'],
+                'login' => ['Invalid credentials'],
             ]);
         }
 
-        // --- SELF-HEALING LOGIC ---
-        // If user has no role, assume they are a patient and fix it automatically.
-        if ($user->roles->isEmpty()) {
-            Log::warning("User {$user->email} logged in without a role. Auto-assigning 'patient'.");
-            
-            // Ensure the role exists
+        // SELF-HEALING: assign role if missing
+        if ($user->getRoleNames()->isEmpty()) {
+            Log::warning("User {$user->email} has no roles. Auto-assigning 'patient'.");
+
+            // Clear permission cache to avoid stale roles
+            app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+            // Assign default role
             SpatieRole::firstOrCreate(['name' => 'patient', 'guard_name' => 'web']);
-            
-            // Assign the role
             $user->assignRole('patient');
-            
-            // Refresh the user model to load the new relationship
-            $user->refresh();
+
+            // Refresh user instance
+            $user = $user->fresh();
         }
-        // ---------------------------
 
-        // Revoke previous tokens to prevent token accumulation
         $user->tokens()->delete();
-
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $roles = $user->roles->pluck('name')->toArray();
-
         return response()->json([
-            'message' => 'Login successful.',
+            'message' => 'Login successful',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
-                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
                 'email' => $user->email,
-                'roles' => $roles, // Now guaranteed to have at least ['patient']
+                'roles' => $user->getRoleNames(),
             ],
         ]);
     }
 
-    /**
-     * Logout user
-     */
-    public function logout(Request $request)
-    {
-        // Safe navigation in case user is not authenticated handled by middleware usually
-        $request->user()?->tokens()->delete();
-
-        return response()->json([
-            'message' => 'Logged out successfully.',
-        ]);
-    }
-
-    /**
-     * Get current authenticated user
-     */
     public function me(Request $request)
     {
         $user = $request->user();
-        $roles = $user->roles->pluck('name')->toArray();
 
         return response()->json([
             'user' => [
                 'id' => $user->id,
-                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'name' => $user->name ?? "{$user->first_name} {$user->last_name}",
                 'email' => $user->email,
-                'roles' => $roles,
+                'roles' => $user->getRoleNames(),
             ],
         ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()?->tokens()->delete();
+
+        return response()->json(['message' => 'Logged out']);
     }
 }

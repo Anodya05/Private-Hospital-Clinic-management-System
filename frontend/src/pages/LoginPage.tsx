@@ -14,20 +14,17 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
+  // Redirect if already logged in
   useEffect(() => {
     document.title = 'Login';
-
-    // Redirect if already authenticated
-    const isAuthenticated = !!localStorage.getItem('authToken');
-    if (isAuthenticated) {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
       const authUserString = localStorage.getItem('authUser');
-      const authUser = authUserString ? JSON.parse(authUserString) : {};
-      
-      const roles = (authUser as any)?.roles || [];
-      const roleString = roles.length > 0 ? roles[0] : ((authUser as any)?.role || '');
-      const role = String(roleString).toLowerCase();
+      const authUser = authUserString ? JSON.parse(authUserString) : null;
 
-      // Only redirect if a valid role exists
+      const rolesArray = authUser?.roles || [];
+      const role = rolesArray.length > 0 ? String(rolesArray[0]).toLowerCase() : '';
+
       if (role) {
         let redirectPath = '/portal';
         switch (role) {
@@ -42,10 +39,9 @@ const LoginPage: React.FC = () => {
     }
   }, [navigate]);
 
-  React.useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+  // Scroll effect for Navbar
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -70,27 +66,25 @@ const LoginPage: React.FC = () => {
         throw new Error('Invalid response from server');
       }
 
-      // 1. Extract Role Safely
-      const userObj = response.user as any; 
-      const roles = userObj?.roles || [];
-      const primaryRole = roles.length > 0 ? roles[0] : (userObj?.role || '');
-      const userRole = String(primaryRole).toLowerCase();
+      // ✅ Extract role safely
+      const userObj = response.user as any;
+      const rolesArray: string[] = userObj?.roles || [];
+      const userRole = rolesArray.length > 0 ? rolesArray[0].toLowerCase() : '';
 
       console.log('User role identified:', userRole);
 
-      // 2. CHECK: If role is empty, STOP here. Do not redirect.
-      if (!userRole || userRole === 'undefined' || userRole === '') {
+      if (!userRole) {
         console.error('Login successful, but user has no role.');
         setError('Login successful, but your account has no assigned role. Please contact support.');
         setLoading(false);
-        return; // Stop execution
+        return;
       }
 
-      // 3. Save to storage ONLY if role is valid
+      // Save token and user in localStorage
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('authUser', JSON.stringify(response.user));
 
-      // 4. Redirect
+      // Redirect based on role
       let redirectPath = '/portal';
       switch (userRole) {
         case 'admin': redirectPath = '/admin'; break;
@@ -102,11 +96,10 @@ const LoginPage: React.FC = () => {
       }
 
       console.log('Redirecting to:', redirectPath);
-      navigate(redirectPath);
-
+      navigate(redirectPath, { replace: true });
     } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = (err as any).response?.data?.message || (err as Error).message || 'Unable to login right now.';
+      const errorMessage = (err as any)?.response?.data?.message || (err as Error).message || 'Unable to login right now.';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -116,9 +109,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className="relative min-h-screen bg-center bg-cover" style={{ backgroundImage: "url('/images/Hero.png')" }}>
       <div className="absolute inset-0 bg-black bg-opacity-50"></div>
-
       <Navbar isScrolled={isScrolled} />
-
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
         <div className="w-full max-w-md">
           <motion.div
@@ -128,7 +119,7 @@ const LoginPage: React.FC = () => {
             className="mb-8 text-center"
           >
             <h1 className="mb-4 text-4xl font-extrabold text-white md:text-5xl">Welcome Back</h1>
-            <p className="text-lg text-gray-200">Sign in to access your patient portal</p>
+            <p className="text-lg text-gray-200">Sign in to access your portal</p>
           </motion.div>
 
           <motion.div
@@ -140,12 +131,10 @@ const LoginPage: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-extrabold text-gray-900">Login</h2>
               <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-teal-600 transition duration-300 bg-transparent border-2 border-teal-500 rounded-full hover:bg-teal-500 hover:text-white">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
                 Back
               </Link>
             </div>
-            
-            {/* Error Display */}
+
             {error && (
               <div className="px-4 py-3 text-sm text-red-800 border border-red-200 rounded-lg bg-red-50">
                 {error}
@@ -202,7 +191,7 @@ const LoginPage: React.FC = () => {
             </form>
           </motion.div>
 
-          <div className="text-center text-gray-200">
+          <div className="text-center text-gray-200 mt-6">
             <p className="mb-2">Don't have an account?</p>
             <Link to="/register" className="inline-block px-6 py-2 font-bold text-white transition duration-300 bg-transparent border-2 border-white rounded-full hover:bg-white hover:text-gray-800">
               Sign Up

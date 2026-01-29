@@ -8,15 +8,18 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
+use Spatie\Permission\Traits\HasRoles; // Important: Spatie Role trait
 use App\Models\Role;
 use App\Models\PatientProfile;
+use App\Models\Clinic;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
+    /**
+     * Auto-generate name if not provided
+     */
     protected static function booted(): void
     {
         static::creating(function (User $user) {
@@ -38,12 +41,21 @@ class User extends Authenticatable
                 $user->name = $fallback;
             }
         });
+
+        // Ensure role assignment on creation if role_id exists
+        static::created(function (User $user) {
+            if ($user->role_id && $user->roles->isEmpty()) {
+                $role = \Spatie\Permission\Models\Role::findById($user->role_id);
+                if ($role) {
+                    $user->assignRole($role->name);
+                    $user->refresh();
+                }
+            }
+        });
     }
 
     /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
+     * Mass assignable attributes
      */
     protected $fillable = [
         'name',
@@ -55,12 +67,11 @@ class User extends Authenticatable
         'role_id',
         'is_active',
         'clinic_id',
+        'department_id',
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
+     * Hidden attributes
      */
     protected $hidden = [
         'password',
@@ -68,41 +79,48 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Attribute casting
      */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'is_active' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'is_active' => 'boolean',
+    ];
 
+    /**
+     * Role relationship (users.role_id → roles.id)
+     * Note: This is your custom role relation; Spatie uses roles() plural.
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Patient profile relationship
+     */
     public function patientProfile(): HasOne
     {
         return $this->hasOne(PatientProfile::class, 'user_id');
     }
 
-    public function getNameAttribute(): string
-    {
-        // If a 'name' column exists, Eloquent will return that; otherwise synthesize from parts
-        if (isset($this->attributes['name']) && $this->attributes['name'] !== null) {
-            return (string) $this->attributes['name'];
-        }
-
-        return trim($this->first_name . ' ' . $this->last_name);
-    }
-
+    /**
+     * Clinic relationship
+     */
     public function clinic(): BelongsTo
     {
         return $this->belongsTo(Clinic::class, 'clinic_id');
+    }
+
+    /**
+     * Safe name accessor
+     */
+    public function getNameAttribute(): string
+    {
+        if (!empty($this->attributes['name'])) {
+            return (string) $this->attributes['name'];
+        }
+
+        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
     }
 }
