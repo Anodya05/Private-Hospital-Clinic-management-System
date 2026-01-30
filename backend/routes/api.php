@@ -87,16 +87,16 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->gr
     Route::post('prescriptions/{id}/interaction-check', [PrescriptionController::class, 'checkInteractions']);
     Route::post('prescriptions/{id}/dispense', [PrescriptionController::class, 'dispense']);
     
-    // Inventory
+    // Inventory - Specific routes MUST come before {id} route
     Route::get('inventory', [InventoryController::class, 'index']);
+    Route::get('inventory/low-stock', [InventoryController::class, 'lowStock']);
+    Route::get('inventory/expiring-soon', [InventoryController::class, 'expiringSoon']);
+    Route::get('inventory/stats', [InventoryController::class, 'stats']);
     Route::post('inventory', [InventoryController::class, 'store']);
     Route::get('inventory/{id}', [InventoryController::class, 'show']);
     Route::put('inventory/{id}', [InventoryController::class, 'update']);
     Route::delete('inventory/{id}', [InventoryController::class, 'destroy']);
     Route::post('inventory/update', [InventoryController::class, 'update']);
-    Route::get('inventory/low-stock', [InventoryController::class, 'lowStock']);
-    Route::get('inventory/expiring-soon', [InventoryController::class, 'expiringSoon']);
-    Route::get('inventory/stats', [InventoryController::class, 'stats']);
     Route::post('purchase-request', [InventoryController::class, 'createPurchaseRequest']);
     
     // Controlled Substances
