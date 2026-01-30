@@ -6,6 +6,25 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
 
+// --- Admin Sub-Pages ---
+import UsersList from './pages/admin/UsersList';
+import CreateUser from './pages/admin/CreateUser';
+import EditUser from './pages/admin/EditUser';
+import Inventory from './pages/admin/Inventory';
+import Reports from './pages/admin/Reports';
+import Departments from './pages/admin/Departments'; // <--- NEW IMPORT
+import NotImplemented from './pages/admin/NotImplemented';
+
+// --- Home Page Components ---
+import HeroSection from './components/HomePage/HeroSection';
+import QuickActionsBar from './components/HomePage/QuickActionsBar';
+import FeaturesGrid from './components/HomePage/FeaturesGrid';
+import ServicesSection from './components/HomePage/ServicesSection';
+import WhyChooseUs from './components/HomePage/WhyChooseUs';
+import TestimonialsSection from './components/HomePage/TestimonialsSection';
+import TelemedicinePromo from './components/HomePage/TelemedicinePromo';
+import Footer from './components/HomePage/Footer';
+
 // --- Dashboard Imports ---
 import ReceptionistPatientRegistration from './pages/ReceptionistPatientRegistration';
 import PatientDashboard from './pages/dashboard/PatientDashboard';
@@ -19,16 +38,6 @@ import PrescriptionProcessingView from './pages/pharmacy/PrescriptionProcessingV
 import InventoryManagement from './pages/pharmacy/InventoryManagement';
 import SupplierManagement from './pages/pharmacy/SupplierManagement';
 import DrugPurchaseManagement from './pages/pharmacy/DrugPurchaseManagement';
-
-// --- Home Page Components ---
-import HeroSection from './components/HomePage/HeroSection';
-import QuickActionsBar from './components/HomePage/QuickActionsBar';
-import FeaturesGrid from './components/HomePage/FeaturesGrid';
-import ServicesSection from './components/HomePage/ServicesSection';
-import WhyChooseUs from './components/HomePage/WhyChooseUs';
-import TestimonialsSection from './components/HomePage/TestimonialsSection';
-import TelemedicinePromo from './components/HomePage/TelemedicinePromo';
-import Footer from './components/HomePage/Footer';
 
 type ChildrenProps = { children: React.ReactNode };
 
@@ -46,7 +55,10 @@ const RequireRole: React.FC<ChildrenProps & { role: string }> = ({ children, rol
     user = null;
   }
 
-  if (!user || user.role !== role) {
+  const userRole = user?.role?.toLowerCase();
+  const requiredRole = role.toLowerCase();
+
+  if (!user || userRole !== requiredRole) {
     return <Navigate to="/portal" replace />;
   }
 
@@ -74,52 +86,145 @@ const App: React.FC = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
 
-    {/* Protected routes */}
+    {/* --- ADMIN ROUTES --- */}
     <Route
       path="/admin"
-      element={<RequireAuth><AdminDashboard /></RequireAuth>}
-    />
+      element={(
+        <RequireAuth>
+          <RequireRole role="admin">
+            <AdminDashboard />
+          </RequireRole>
+        </RequireAuth>
+      )}
+    >
+        {/* Working Pages */}
+        <Route path="users" element={<UsersList />} />
+        <Route path="users/new" element={<CreateUser />} />
+        <Route path="users/:id/edit" element={<EditUser />} />
+        
+        <Route path="reports" element={<Reports />} />
+        <Route path="inventory" element={<Inventory />} />
+        
+        {/* --- CONNECTED DEPARTMENT PAGE --- */}
+        <Route path="departments" element={<Departments />} />
+
+        {/* Placeholders for Future Features */}
+        <Route path="appointments" element={<NotImplemented />} />
+        <Route path="billing" element={<NotImplemented />} />
+        <Route path="settings" element={<NotImplemented />} />
+    </Route>
+
+    {/* --- DOCTOR ROUTES --- */}
     <Route
-      path="/doctor"
-      element={<RequireAuth><DoctorDashboard /></RequireAuth>}
-    />
-    <Route
-      path="/patient"
-      element={<RequireAuth><RequireRole role="patient"><PatientDashboard /></RequireRole></RequireAuth>}
-    />
-    <Route
-      path="/portal"
-      element={<RequireAuth><PortalPage /></RequireAuth>}
-    />
-    <Route
-      path="/receptionist"
-      element={<RequireAuth><ReceptionistDashboard /></RequireAuth>}
-    />
-    <Route
-      path="/receptionist/register-patient"
-      element={<RequireAuth><ReceptionistPatientRegistration /></RequireAuth>}
-    />
-    <Route
-      path="/pharmacist"
-      element={<RequireAuth><PharmacistDashboard /></RequireAuth>}
+      path="/doctor/*"
+      element={(
+        <RequireAuth>
+          <RequireRole role="doctor">
+            <DoctorDashboard />
+          </RequireRole>
+        </RequireAuth>
+      )}
     />
 
-    {/* --- Pharmacy Sub-Pages --- */}
+    {/* --- PATIENT ROUTES --- */}
+    <Route
+      path="/patient/*"
+      element={(
+        <RequireAuth>
+          <RequireRole role="patient">
+            <PatientDashboard />
+          </RequireRole>
+        </RequireAuth>
+      )}
+    />
+
+    <Route
+      path="/portal"
+      element={(
+        <RequireAuth>
+          <PortalPage />
+        </RequireAuth>
+      )}
+    />
+
+    {/* --- RECEPTIONIST ROUTES --- */}
+    <Route
+      path="/receptionist/*"
+      element={(
+        <RequireAuth>
+          <RequireRole role="receptionist">
+            <ReceptionistDashboard />
+          </RequireRole>
+        </RequireAuth>
+      )}
+    />
+
+    <Route
+      path="/receptionist/register-patient"
+      element={(
+        <RequireAuth>
+          <RequireRole role="receptionist">
+            <ReceptionistPatientRegistration />
+          </RequireRole>
+        </RequireAuth>
+      )}
+    />
+
+    {/* --- PHARMACIST ROUTES --- */}
+    <Route
+      path="/pharmacist/*"
+      element={(
+        <RequireAuth>
+          <RequireRole role="pharmacist">
+            <PharmacistDashboard />
+          </RequireRole>
+        </RequireAuth>
+      )}
+    />
+
+    {/* Pharmacist Sub-routes */}
     <Route
       path="/pharmacist/prescriptions"
-      element={<RequireAuth><PrescriptionProcessingView /></RequireAuth>}
+      element={(
+        <RequireAuth>
+          <RequireRole role="pharmacist">
+            <PrescriptionProcessingView />
+          </RequireRole>
+        </RequireAuth>
+      )}
     />
+
     <Route
       path="/pharmacist/inventory"
-      element={<RequireAuth><InventoryManagement /></RequireAuth>}
+      element={(
+        <RequireAuth>
+          <RequireRole role="pharmacist">
+            <InventoryManagement />
+          </RequireRole>
+        </RequireAuth>
+      )}
     />
+
     <Route
       path="/pharmacist/suppliers"
-      element={<RequireAuth><SupplierManagement /></RequireAuth>}
+      element={(
+        <RequireAuth>
+          <RequireRole role="pharmacist">
+            <SupplierManagement />
+          </RequireRole>
+        </RequireAuth>
+      )}
     />
+
     <Route
       path="/pharmacist/purchases"
-      element={<RequireAuth><DrugPurchaseManagement /></RequireAuth>}
+      element={(
+        <RequireAuth>
+          <RequireRole role="pharmacist">
+            <DrugPurchaseManagement />
+          </RequireRole>
+        </RequireAuth>
+      )}
     />
 
     {/* Catch-all: Redirect unknown links to Home */}

@@ -8,19 +8,23 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles; // Spatie Role trait
+use Spatie\Permission\Traits\HasRoles;
 use App\Models\Role;
 use App\Models\PatientProfile;
 use App\Models\Clinic;
 
 class User extends Authenticatable
 {
+    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
     /**
-     * Mass assignable attributes
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
      */
     protected $fillable = [
+        // 'name', // Removed because your DB likely doesn't have this column
         'first_name',
         'last_name',
         'username',
@@ -29,11 +33,13 @@ class User extends Authenticatable
         'role_id',
         'is_active',
         'clinic_id',
-        'department_id',
+        'department_id', // Added this so you can assign departments
     ];
 
     /**
-     * Hidden attributes
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
      */
     protected $hidden = [
         'password',
@@ -41,53 +47,21 @@ class User extends Authenticatable
     ];
 
     /**
-     * Attribute casting
+     * The attributes that should be cast.
+     *
+     * @return array<string, string>
      */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'is_active' => 'boolean',
-    ];
-
-    /**
-     * Boot method to handle auto-filling name and assigning Spatie role
-     */
-    protected static function booted(): void
+    protected function casts(): array
     {
-        // Auto-generate name if missing
-        static::creating(function (User $user) {
-            if (empty($user->name)) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                $user->name = $fallback !== '' ? $fallback : ($user->username ?? 'User');
-            }
-        });
-
-        static::updating(function (User $user) {
-            if (array_key_exists('name', $user->getDirty()) && $user->name === null) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                $user->name = $fallback !== '' ? $fallback : ($user->username ?? 'User');
-            }
-        });
-
-        // Assign Spatie role automatically if role_id is set
-        static::created(function (User $user) {
-            if ($user->role_id && $user->roles->isEmpty()) {
-                try {
-                    $role = \Spatie\Permission\Models\Role::findById($user->role_id);
-                    if ($role) {
-                        $user->assignRole($role->name);
-                        $user->refresh();
-                    }
-                } catch (\Exception $e) {
-                    // Fail silently or log error
-                    \Log::warning("Role assignment failed for user {$user->id}: " . $e->getMessage());
-                }
-            }
-        });
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'is_active' => 'boolean',
+        ];
     }
 
     /**
-     * Role relationship (users.role_id → roles.id)
+     * Get the role associated with the user (via role_id).
      */
     public function role(): BelongsTo
     {
@@ -95,7 +69,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Patient profile relationship
+     * Get the patient profile associated with the user.
      */
     public function patientProfile(): HasOne
     {
@@ -103,7 +77,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Clinic relationship
+     * Get the clinic associated with the user.
      */
     public function clinic(): BelongsTo
     {
@@ -111,16 +85,20 @@ class User extends Authenticatable
     }
 
     /**
-     * Safe name accessor
-     * Combines first_name + last_name or falls back to username
+     * Virtual Attribute: 'name'
+     * Allows you to call $user->name even though the column doesn't exist.
      */
     public function getNameAttribute(): string
     {
+        // If the database actually HAS a name column, use it.
         if (isset($this->attributes['name']) && $this->attributes['name'] !== null) {
-            return (string)$this->attributes['name'];
+            return (string) $this->attributes['name'];
         }
 
-        $fullName = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
-        return $fullName !== '' ? $fullName : ($this->username ?? 'User');
+        // Otherwise, combine first and last name
+        $full = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        
+        // If both are empty, fall back to username
+        return $full === '' ? ($this->username ?? 'User') : $full;
     }
 }

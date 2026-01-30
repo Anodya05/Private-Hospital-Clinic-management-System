@@ -3,28 +3,26 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PatientProfile;
 use App\Models\User;
+use App\Models\PatientProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role as SpatieRole;
-use Spatie\Permission\PermissionRegistrar;
 
 class AuthController extends Controller
 {
-    /**
-     * Patient-only registration
-     */
     public function register(Request $request)
     {
+        \Log::info('Registration attempt', $request->all());
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
+            'role' => ['nullable', 'string', Rule::in(['patient'])],
             'date_of_birth' => ['nullable', 'date'],
             'phone' => ['nullable', 'string', 'max:20'],
             'gender' => ['nullable', 'string', 'in:male,female,other'],
@@ -39,15 +37,14 @@ class AuthController extends Controller
             'guardian_relationship' => ['nullable', 'string', 'max:100'],
         ]);
 
+        // Public signup is patient-only
         $roleName = 'patient';
 
-        // Split full name into first and last
         $fullName = trim($data['name']);
         $parts = preg_split('/\s+/', $fullName) ?: [];
         $firstName = $parts[0] ?? $fullName;
         $lastName = count($parts) > 1 ? trim(implode(' ', array_slice($parts, 1))) : 'Patient';
 
-        // Generate unique username
         $usernameBase = Str::slug($firstName . ' ' . $lastName, '');
         if ($usernameBase === '') {
             $usernameBase = 'user';
@@ -59,23 +56,23 @@ class AuthController extends Controller
             $suffix++;
         }
 
-        // Build user data
+        // Build user data depending on whether a "name" column exists
         $userData = [
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'username' => $username,
         ];
 
         if (Schema::hasColumn('users', 'name')) {
-            $userData['name'] = $data['name'];
+            $userData['name'] = $fullName;
         } else {
             $userData['first_name'] = $firstName;
-            $userData['last_name'] = $lastName;
+            $userData['last_name'] = $lastName ?: 'Patient';
+            $userData['username'] = $username;
         }
 
         $user = User::create($userData);
 
-        // Create patient profile
+        // Create patient profile with additional information
         PatientProfile::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
@@ -92,62 +89,56 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign role and clear Spatie cache
-        SpatieRole::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        // Assign role using Spatie Permission (and create if missing)
+        SpatieRole::findOrCreate($roleName, 'sanctum');
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        Log::info('Registration successful', ['id' => $user->id, 'email' => $user->email]);
+        \Log::info('Registration successful for user', ['id' => $user->id, 'email' => $user->email]);
 
         return response()->json([
-            'message' => 'Registration successful',
+            'message' => 'Registration successful.',
             'token' => $token,
             'user' => $this->formatUserData($user),
         ], 201);
     }
 
-    /**
-     * Login with self-healing
-     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'login' => ['required', 'string'],
+            'login' => ['required', 'string'], // email
             'password' => ['required', 'string'],
         ]);
 
+        // Search by email only
         $user = User::where('email', $credentials['login'])->first();
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'login' => ['Invalid credentials'],
+                'login' => ['The provided credentials are incorrect.'],
             ]);
-        }
-
-        // Auto-assign role if missing
-        if ($user->getRoleNames()->isEmpty()) {
-            Log::warning("User {$user->email} has no roles. Auto-assigning 'patient'.");
-            app()[PermissionRegistrar::class]->forgetCachedPermissions();
-            SpatieRole::firstOrCreate(['name' => 'patient', 'guard_name' => 'web']);
-            $user->assignRole('patient');
-            $user = $user->fresh();
         }
 
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login successful',
+            'message' => 'Login successful.',
             'token' => $token,
             'user' => $this->formatUserData($user),
         ]);
     }
 
-    /**
-     * Return logged-in user data
-     */
+    public function logout(Request $request)
+    {
+        $request->user()?->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully.',
+        ]);
+    }
+
     public function me(Request $request)
     {
         $user = $request->user();
@@ -158,25 +149,17 @@ class AuthController extends Controller
     }
 
     /**
-     * Logout user
-     */
-    public function logout(Request $request)
-    {
-        $request->user()?->tokens()->delete();
-
-        return response()->json([
-            'message' => 'Logged out',
-        ]);
-    }
-
-    /**
-     * Format user data consistently
+     * Helper to format user data consistently.
+     * Checks both 'role_id' relation and Spatie roles to find the correct role name.
      */
     private function formatUserData($user)
     {
+        // Load the role relationship if it exists (for role_id)
         $user->load('role');
 
+        // Determine role: Check role_id relation first, then Spatie, then default to patient
         $roleName = 'patient';
+        
         if ($user->role) {
             $roleName = $user->role->name;
         } elseif ($user->roles && $user->roles->first()) {
@@ -190,7 +173,7 @@ class AuthController extends Controller
             'name' => $user->name ?? ($user->first_name . ' ' . $user->last_name),
             'username' => $user->username,
             'email' => $user->email,
-            'role' => $roleName,
+            'role' => $roleName, // This now returns a String (e.g., "admin"), not a number
         ];
     }
 }

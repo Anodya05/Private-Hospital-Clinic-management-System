@@ -8,19 +8,36 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Check if table exists to avoid errors
+        // 1. Create Departments Table
         if (!Schema::hasTable('departments')) {
             Schema::create('departments', function (Blueprint $table) {
                 $table->id();
-                $table->string('name'); // This is what shows in your dropdown
-                $table->string('description')->nullable();
+                $table->string('name')->unique(); // Unique name to prevent duplicates
+                $table->text('description')->nullable();
+                $table->string('status')->default('Active'); // Active or Inactive
                 $table->timestamps();
+            });
+        }
+
+        // 2. Add 'department_id' to 'users' table (to link Doctors to Departments)
+        if (Schema::hasTable('users') && !Schema::hasColumn('users', 'department_id')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->unsignedBigInteger('department_id')->nullable()->after('id');
+                // Optional: Add foreign key constraint for safety
+                // $table->foreign('department_id')->references('id')->on('departments')->nullOnDelete();
             });
         }
     }
 
     public function down(): void
     {
+        // Reverse operations
+        if (Schema::hasColumn('users', 'department_id')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropColumn('department_id');
+            });
+        }
+        
         Schema::dropIfExists('departments');
     }
 };
