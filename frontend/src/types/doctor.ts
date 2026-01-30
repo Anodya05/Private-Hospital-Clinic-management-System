@@ -393,6 +393,29 @@ export interface CreateReferralPayload {
   appointment_date?: string | null;
 }
 
+export interface Clinic {
+  id: number;
+  name: string;
+  location?: string | null;
+  department_type?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClinicsResponse {
+  data: Clinic[];
+}
+
+export interface CreateClinicReferralPayload {
+  patient_id: number;
+  clinic_id: number;
+  reason: string;
+  clinical_summary?: string | null;
+  notes?: string | null;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  preferred_appointment_date?: string | null;
+}
+
 export interface DoctorInventoryItem {
   id: number;
   name: string;
@@ -412,4 +435,46 @@ export interface CdsWarning {
   type: 'drug_interaction' | 'allergy' | 'duplicate_medication' | 'duplicate_diagnosis';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
+}
+
+export interface PatientRecord {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  patient_profile?: {
+    phone?: string;
+    date_of_birth?: string;
+    gender?: string;
+    address?: string;
+    blood_type?: string;
+    city?: string;
+    state?: string;
+    guardian_name?: string;
+    guardian_phone?: string;
+    emergency_contact?: string;
+    allergies?: string;
+    medical_conditions?: string;
+  } | null;
+  prescriptions?: Array<{
+    id: number;
+    medication_name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions?: string;
+    status: string;
+    prescribed_date: string;
+    doctor_name?: string;
+  }>;
+  clinic_referrals?: Array<{
+    id: number;
+    clinic_name: string;
+    clinic_location?: string;
+    reason: string;
+    priority: string;
+    status: string;
+    preferred_appointment_date?: string;
+    created_at: string;
+  }>;
 }

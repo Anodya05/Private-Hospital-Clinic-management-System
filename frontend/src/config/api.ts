@@ -1,6 +1,193 @@
 // API Configuration
 declare const process: {
-  env: {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}    }        ]);            'message' => 'Patient record retrieved successfully'            'data' => $patientRecord,        return response()->json([        ];            })->toArray(),                ];                    'created_at' => $referral->created_at->toISOString(),                    'preferred_appointment_date' => $referral->preferred_appointment_date,                    'status' => $referral->status ?? 'pending',                    'priority' => $referral->priority,                    'reason' => $referral->reason,                    'clinic_location' => $referral->clinic ? $referral->clinic->location : null,                    'clinic_name' => $referral->clinic ? $referral->clinic->name : 'Unknown Clinic',                    'id' => $referral->id,                return [            'clinic_referrals' => $user->clinicReferrals->map(function ($referral) {            })->toArray(),                ];                        : 'Unknown Doctor'                        ? $prescription->doctor->first_name . ' ' . $prescription->doctor->last_name                     'doctor_name' => $prescription->doctor                     'prescribed_date' => $prescription->created_at->toDateString(),                    'status' => $prescription->status ?? 'active',                    'instructions' => $prescription->instructions,                    'duration' => $prescription->duration,                    'frequency' => $prescription->frequency,                    'dosage' => $prescription->dosage,                    'medication_name' => $prescription->medication_name,                    'id' => $prescription->id,                return [            'prescriptions' => $user->prescriptions->map(function ($prescription) {            ] : null,                'medical_conditions' => $user->patientProfile->medical_conditions,                'allergies' => $user->patientProfile->allergies,                'emergency_contact' => $user->patientProfile->emergency_contact,                'guardian_phone' => $user->patientProfile->guardian_phone,                'guardian_name' => $user->patientProfile->guardian_name,                'state' => $user->patientProfile->state,                'city' => $user->patientProfile->city,                'blood_type' => $user->patientProfile->blood_type,                'address' => $user->patientProfile->address,                'gender' => $user->patientProfile->gender,                'date_of_birth' => $user->patientProfile->date_of_birth,                'phone' => $user->patientProfile->phone,            'patient_profile' => $user->patientProfile ? [            'email' => $user->email,            'last_name' => $user->last_name,            'first_name' => $user->first_name,            'id' => $user->id,        $patientRecord = [        // Transform the data for the frontend (same as searchByPhone)        }            ], 404);                'message' => 'Patient not found'                'data' => null,            return response()->json([        if (!$user || !$user->hasRole('patient')) {        ])->find($id);            }                    ->orderBy('created_at', 'desc');                $query->with('clinic:id,name,location')            'clinicReferrals' => function ($query) {            },                    ->orderBy('created_at', 'desc');                $query->with('doctor:id,first_name,last_name')            'prescriptions' => function ($query) {            'patientProfile',        $user = User::with([    {    public function show(Request $request, $id): JsonResponse     */     * Get patient details by ID    /**    }        ]);            'message' => 'Patient record found successfully'            'data' => $patientRecord,        return response()->json([        ];            })->toArray(),                ];                    'created_at' => $referral->created_at->toISOString(),                    'preferred_appointment_date' => $referral->preferred_appointment_date,                    'status' => $referral->status ?? 'pending',                    'priority' => $referral->priority,                    'reason' => $referral->reason,                    'clinic_location' => $referral->clinic ? $referral->clinic->location : null,                    'clinic_name' => $referral->clinic ? $referral->clinic->name : 'Unknown Clinic',                    'id' => $referral->id,                return [            'clinic_referrals' => $user->clinicReferrals->map(function ($referral) {            })->toArray(),                ];                        : 'Unknown Doctor'                        ? $prescription->doctor->first_name . ' ' . $prescription->doctor->last_name                     'doctor_name' => $prescription->doctor                     'prescribed_date' => $prescription->created_at->toDateString(),                    'status' => $prescription->status ?? 'active',                    'instructions' => $prescription->instructions,                    'duration' => $prescription->duration,                    'frequency' => $prescription->frequency,                    'dosage' => $prescription->dosage,                    'medication_name' => $prescription->medication_name,                    'id' => $prescription->id,                return [            'prescriptions' => $user->prescriptions->map(function ($prescription) {            ] : null,                'medical_conditions' => $user->patientProfile->medical_conditions,                'allergies' => $user->patientProfile->allergies,                'emergency_contact' => $user->patientProfile->emergency_contact,                'guardian_phone' => $user->patientProfile->guardian_phone,                'guardian_name' => $user->patientProfile->guardian_name,                'state' => $user->patientProfile->state,                'city' => $user->patientProfile->city,                'blood_type' => $user->patientProfile->blood_type,                'address' => $user->patientProfile->address,                'gender' => $user->patientProfile->gender,                'date_of_birth' => $user->patientProfile->date_of_birth,                'phone' => $user->patientProfile->phone,            'patient_profile' => $user->patientProfile ? [            'email' => $user->email,            'last_name' => $user->last_name,            'first_name' => $user->first_name,            'id' => $user->id,        $patientRecord = [        // Transform the data for the frontend        }            ], 404);                'message' => 'Patient record not found'                'data' => null,            return response()->json([        if (!$user) {        ])->find($patientProfile->user_id);            }                    ->orderBy('created_at', 'desc');                $query->with('clinic:id,name,location')            'clinicReferrals' => function ($query) {            },                    ->orderBy('created_at', 'desc');                $query->with('doctor:id,first_name,last_name')            'prescriptions' => function ($query) {            'patientProfile',        $user = User::with([        // Get the user associated with this patient profile        }            ], 404);                'message' => 'No patient found with this phone number'                'data' => null,            return response()->json([        if (!$patientProfile) {            ->first();            ->orWhere('guardian_phone', $phone)        $patientProfile = PatientProfile::where('phone', $phone)        // Find patient by phone number in patient profiles        $phone = $request->input('phone');        ]);            'phone' => 'required|string|max:20'        $request->validate([    {    public function searchByPhone(Request $request): JsonResponse     */     * Search patient by phone number    /**{class PatientController extends Controlleruse Illuminate\Http\JsonResponse;use Illuminate\Http\Request;use App\Models\PatientProfile;use App\Models\User;use App\Http\Controllers\Controller;namespace App\Http\Controllers\Api;  env: {
     REACT_APP_API_URL?: string;
   };
 };
@@ -102,6 +289,21 @@ export const API_ENDPOINTS = {
 
   // Clinics
   CLINICS: `${API_BASE_URL}/api/clinics`,
+  CLINIC_REFERRAL: `${API_BASE_URL}/api/doctor/clinic-referrals`,
+
+  // Patients
+  PATIENTS: `${API_BASE_URL}/api/patients`,
+
+  // AI / GPT-5.2-Codex Integration
+  AI_CHAT: `${API_BASE_URL}/api/ai/chat`,
+  AI_MEDICAL_ANALYSIS: `${API_BASE_URL}/api/ai/medical/analysis`,
+  AI_DRUG_INTERACTIONS: `${API_BASE_URL}/api/ai/medical/drug-interactions`,
+  AI_DIAGNOSTICS: `${API_BASE_URL}/api/ai/medical/diagnostics`,
+  AI_PRESCRIPTION_REVIEW: `${API_BASE_URL}/api/ai/medical/prescription-review`,
+  AI_PATIENT_INSIGHTS: `${API_BASE_URL}/api/ai/patient/insights`,
+  AI_DOCUMENT_GENERATION: `${API_BASE_URL}/api/ai/documents/generate`,
+  AI_MODEL_STATUS: `${API_BASE_URL}/api/ai/status`,
+  AI_FEATURES: `${API_BASE_URL}/api/ai/features`,
 };
 
 export default API_BASE_URL;

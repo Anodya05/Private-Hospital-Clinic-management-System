@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   Calendar,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   Users,
   Video,
   X,
+  Brain,
 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { doctorApi } from '../../api/doctor';
@@ -21,6 +23,10 @@ import { AppointmentTable } from '../../components/doctor/AppointmentTable';
 import { DiagnosisForm } from '../../components/doctor/DiagnosisForm';
 import { EhrViewer } from '../../components/doctor/EhrViewer';
 import { PrescriptionForm } from '../../components/doctor/PrescriptionForm';
+import AIInsightsPanel from '../../components/common/AIInsightsPanel';
+import { isAIEnabled } from '../../config/ai';
+import ClinicReferralForm from '../../components/doctor/ClinicReferralForm';
+import PatientLookup from '../../components/doctor/PatientLookup';
 import type {
   CreateDiagnosisPayload,
   CreateLabOrderPayload,
@@ -36,10 +42,11 @@ import type {
   Referral,
   UpdateDiagnosisPayload,
   CreatePatientPayload,
+  CreateClinicReferralPayload,
 } from '../../types/doctor';
 import type { AuthUser } from '../../types/auth';
 
-type SectionKey = 'overview' | 'queue' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
+type SectionKey = 'overview' | 'queue' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals' | 'ai_insights';
 
 const safeParseJson = (value: string | null) => {
   if (!value) return null;
@@ -59,6 +66,8 @@ const DoctorDashboardView: React.FC = () => {
   const [active, setActive] = useState<SectionKey>('overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [selectedPatientForAI, setSelectedPatientForAI] = useState<string | null>(null);
 
   const initialAppointmentFilters = useMemo(
     () => ({
@@ -130,6 +139,9 @@ const DoctorDashboardView: React.FC = () => {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [referralModalOpen, setReferralModalOpen] = useState(false);
   const [referralSaving, setReferralSaving] = useState(false);
+  const [clinicReferralModalOpen, setClinicReferralModalOpen] = useState(false);
+  const [clinicReferralSaving, setClinicReferralSaving] = useState(false);
+  const [patientLookupModalOpen, setPatientLookupModalOpen] = useState(false);
   const [referralFilters, setReferralFilters] = useState(initialReferralFilters);
   const [referralForm, setReferralForm] = useState({
     patient_id: '',
@@ -640,6 +652,21 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  const createClinicReferral = async (payload: CreateClinicReferralPayload) => {
+    setError(null);
+    setClinicReferralSaving(true);
+    try {
+      await doctorApi.clinics.referPatient(payload);
+      setClinicReferralModalOpen(false);
+      toast.success('Patient successfully referred to clinic');
+    } catch (e: any) {
+      setError(e?.message || 'Failed to create clinic referral');
+      toast.error('Failed to create clinic referral');
+    } finally {
+      setClinicReferralSaving(false);
+    }
+  };
+
   // Queue functions
   const loadQueue = useCallback(async () => {
     setError(null);
@@ -840,6 +867,7 @@ const DoctorDashboardView: React.FC = () => {
               ['prescriptions', 'Prescriptions', Pill],
               ['labs', 'Lab Orders', FlaskConical],
               ['referrals', 'Referrals', Share2],
+              ...(isAIEnabled() ? [['ai_insights', 'AI Insights', Brain]] : []),
             ] as Array<[SectionKey, string, any]>
           ).map(([key, label, Icon]) => (
             <button
@@ -1055,15 +1083,54 @@ const DoctorDashboardView: React.FC = () => {
                     <div className="mb-6">
                       <Share2 className="w-12 h-12 text-teal-500 mb-4" />
                       <h2 className="text-xl font-bold text-gray-800 mb-3">Referrals</h2>
-                      <p className="text-gray-600">Refer patients to specialists</p>
+                      <p className="text-gray-600">Refer patients to specialists and clinics</p>
                     </div>
-                    <button
-                      onClick={() => setActive('referrals')}
-                      className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
-                    >
-                      Refer
-                    </button>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setActive('referrals')}
+                        className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        Doctor Referrals
+                      </button>
+                      <button
+                        onClick={() => setClinicReferralModalOpen(true)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        Refer to Clinic
+                      </button>
+                      <button
+                        onClick={() => setPatientLookupModalOpen(true)}
+                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        View Patient Records
+                      </button>
+                    </div>
                   </motion.div>
+
+                  {isAIEnabled() && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 50 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.6 }}
+                      className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8 border border-blue-200"
+                    >
+                      <div className="mb-6">
+                        <Brain className="w-12 h-12 text-blue-600 mb-4" />
+                        <h2 className="text-xl font-bold text-gray-800 mb-3">AI Medical Insights</h2>
+                        <p className="text-gray-600">GPT-5.2-Codex powered analysis</p>
+                        <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>AI Enabled</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActive('ai_insights')}
+                        className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
+                      >
+                        Explore AI
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1971,6 +2038,71 @@ const DoctorDashboardView: React.FC = () => {
                 )}
               </div>
             )}
+
+            {active === 'ai_insights' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">AI Medical Insights</h2>
+                    <p className="text-gray-600 text-sm">GPT-5.2-Codex powered medical analysis and decision support</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-2 rounded-full text-sm">
+                    <Brain className="w-4 h-4" />
+                    <span>AI Enabled</span>
+                  </div>
+                </div>
+
+                <AIInsightsPanel 
+                  context="doctor" 
+                  patientId={selectedPatientForAI || undefined} 
+                  data={{ appointments, prescriptions, labData }}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Patient for AI Analysis</h3>
+                    <select
+                      value={selectedPatientForAI || ''}
+                      onChange={(e) => setSelectedPatientForAI(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a patient...</option>
+                      {appointments.map((appointment) => (
+                        <option key={appointment.id} value={appointment.patient_id.toString()}>
+                          Patient ID: {appointment.patient_id} - {appointment.appointment_date}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">AI Features Available</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Medical Insights & Analysis</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Drug Interaction Checking</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Clinical Decision Support</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Patient Analytics</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>AI Medical Chat Assistant</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2363,6 +2495,20 @@ const DoctorDashboardView: React.FC = () => {
             </div>
           </div>
         )}
+
+        <ClinicReferralForm
+          open={clinicReferralModalOpen}
+          onClose={() => setClinicReferralModalOpen(false)}
+          onSubmit={createClinicReferral}
+          saving={clinicReferralSaving}
+          initialPatientId={selectedAppointment?.patient_id ?? null}
+        />
+
+        {/* Patient Lookup Modal */}
+        <PatientLookup
+          open={patientLookupModalOpen}
+          onClose={() => setPatientLookupModalOpen(false)}
+        />
       </div>
     </div>
   );

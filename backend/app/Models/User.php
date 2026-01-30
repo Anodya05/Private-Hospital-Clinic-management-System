@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Role;
 use App\Models\PatientProfile;
+use App\Models\Prescription;
+use App\Models\ClinicReferral;
 
 class User extends Authenticatable
 {
@@ -89,6 +92,16 @@ class User extends Authenticatable
     public function patientProfile(): HasOne
     {
         return $this->hasOne(PatientProfile::class, 'user_id');
+    }
+
+    public function prescriptions(): HasMany
+    {
+        return $this->hasMany(Prescription::class, 'patient_id');
+    }
+
+    public function clinicReferrals(): HasMany
+    {
+        return $this->hasMany(ClinicReferral::class, 'patient_id');
     }
 
     public function getNameAttribute(): string

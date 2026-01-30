@@ -27,6 +27,9 @@ import type {
   ReferralsResponse,
   Referral,
   CreateReferralPayload,
+  ClinicsResponse,
+  CreateClinicReferralPayload,
+  PatientRecord,
 } from '../types/doctor';
 
 export const doctorApi = {
@@ -170,6 +173,27 @@ export const doctorApi = {
   inventory: {
     list: async (params?: { search?: string; category?: string; low_stock?: boolean; expiring_soon?: boolean }): Promise<DoctorInventoryResponse> => {
       const response = await http.get<DoctorInventoryResponse>(API_ENDPOINTS.DOCTOR_INVENTORY, { params });
+      return response.data;
+    },
+  },
+
+  clinics: {
+    list: async (): Promise<ClinicsResponse> => {
+      const response = await http.get<ClinicsResponse>(API_ENDPOINTS.CLINICS);
+      return response.data;
+    },
+
+    referPatient: async (payload: CreateClinicReferralPayload): Promise<any> => {
+      const response = await http.post(API_ENDPOINTS.CLINIC_REFERRAL, payload);
+      return response.data;
+    },
+  },
+
+  patients: {
+    searchByPhone: async (phoneNumber: string): Promise<{ data: PatientRecord | null }> => {
+      const response = await http.get<{ data: PatientRecord | null }>(`${API_ENDPOINTS.PATIENTS}/search`, {
+        params: { phone: phoneNumber }
+      });
       return response.data;
     },
   },
