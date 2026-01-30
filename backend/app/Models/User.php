@@ -11,6 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Role;
 use App\Models\PatientProfile;
+use App\Models\Clinic;
 
 class User extends Authenticatable
 {
@@ -23,7 +24,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        // 'name', // Removed because your DB likely doesn't have this column
         'first_name',
         'last_name',
         'username',
@@ -32,6 +33,7 @@ class User extends Authenticatable
         'role_id',
         'is_active',
         'clinic_id',
+        'department_id', // Added this so you can assign departments
     ];
 
     /**
@@ -58,28 +60,45 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Get the role associated with the user (via role_id).
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Get the patient profile associated with the user.
+     */
     public function patientProfile(): HasOne
     {
         return $this->hasOne(PatientProfile::class, 'user_id');
     }
 
+    /**
+     * Get the clinic associated with the user.
+     */
+    public function clinic(): BelongsTo
+    {
+        return $this->belongsTo(Clinic::class, 'clinic_id');
+    }
+
+    /**
+     * Virtual Attribute: 'name'
+     * Allows you to call $user->name even though the column doesn't exist.
+     */
     public function getNameAttribute(): string
     {
-        // If a 'name' column exists, Eloquent will return that; otherwise synthesize from parts
+        // If the database actually HAS a name column, use it.
         if (isset($this->attributes['name']) && $this->attributes['name'] !== null) {
             return (string) $this->attributes['name'];
         }
 
-        return trim($this->first_name . ' ' . $this->last_name);
-    }
-
-    public function clinic(): BelongsTo
-    {
-        return $this->belongsTo(Clinic::class, 'clinic_id');
+        // Otherwise, combine first and last name
+        $full = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        
+        // If both are empty, fall back to username
+        return $full === '' ? ($this->username ?? 'User') : $full;
     }
 }

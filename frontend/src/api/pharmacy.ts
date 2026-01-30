@@ -9,6 +9,19 @@ const getAuthHeaders = () => {
   };
 };
 
+// Helper function to handle API responses
+const handleApiResponse = async (response: Response) => {
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`API Error ${response.status}:`, errorText);
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  
+  const data = await response.json();
+  console.log('API Response Data:', data);
+  return data;
+};
+
 // Prescription API
 export const prescriptionApi = {
   getAll: (params?: { status?: string; patient_id?: number }) => {
@@ -57,59 +70,72 @@ export const inventoryApi = {
     if (params?.expiring_soon) queryParams.append('expiring_soon', '1');
     
     const url = queryParams.toString() 
-      ? `${API_ENDPOINTS.INVENTORY}?${queryParams.toString()}`
-      : API_ENDPOINTS.INVENTORY;
+      ? `${API_ENDPOINTS.PHARMACIST_INVENTORY}?${queryParams.toString()}`
+      : API_ENDPOINTS.PHARMACIST_INVENTORY;
     
+    console.log('Fetching inventory from URL:', url);
     return fetch(url, {
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   getById: (id: string) => {
-    return fetch(`${API_ENDPOINTS.INVENTORY}/${id}`, {
+    const url = `${API_ENDPOINTS.PHARMACIST_INVENTORY}/${id}`;
+    console.log('Fetching inventory item from URL:', url);
+    return fetch(url, {
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   create: (data: any) => {
-    return fetch(API_ENDPOINTS.INVENTORY, {
+    console.log('=== INVENTORY CREATE API CALL ===');
+    console.log('Endpoint:', API_ENDPOINTS.PHARMACIST_INVENTORY);
+    console.log('Data to send:', data);
+    console.log('Data stringified:', JSON.stringify(data));
+    console.log('Headers:', getAuthHeaders());
+    
+    return fetch(API_ENDPOINTS.PHARMACIST_INVENTORY, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   update: (id: string, data: any) => {
-    return fetch(`${API_ENDPOINTS.INVENTORY}/${id}`, {
+    const url = `${API_ENDPOINTS.PHARMACIST_INVENTORY}/${id}`;
+    console.log('Updating inventory item at URL:', url, 'with data:', data);
+    return fetch(url, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   delete: (id: string) => {
-    return fetch(`${API_ENDPOINTS.INVENTORY}/${id}`, {
+    const url = `${API_ENDPOINTS.PHARMACIST_INVENTORY}/${id}`;
+    console.log('Deleting inventory item at URL:', url);
+    return fetch(url, {
       method: 'DELETE',
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   getLowStock: () => {
-    return fetch(API_ENDPOINTS.INVENTORY_LOW_STOCK, {
+    return fetch(API_ENDPOINTS.PHARMACIST_INVENTORY_LOW_STOCK, {
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   getExpiringSoon: () => {
-    return fetch(API_ENDPOINTS.INVENTORY_EXPIRING_SOON, {
+    return fetch(API_ENDPOINTS.PHARMACIST_INVENTORY_EXPIRING_SOON, {
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 
   getStats: () => {
-    return fetch(API_ENDPOINTS.INVENTORY_STATS, {
+    return fetch(API_ENDPOINTS.PHARMACIST_INVENTORY_STATS, {
       headers: getAuthHeaders(),
-    }).then(res => res.json());
+    }).then(handleApiResponse);
   },
 };
 
