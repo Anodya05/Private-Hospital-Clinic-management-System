@@ -15,6 +15,7 @@ class LabOrder extends Model
         'order_number',
         'patient_id',
         'doctor_id',
+        'clinic_id',
         'appointment_id',
         'test_type',
         'test_description',
@@ -33,6 +34,11 @@ class LabOrder extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(User::class, 'patient_id');
+    }
+
+    public function clinic(): BelongsTo
+    {
+        return $this->belongsTo(Clinic::class);
     }
 
     public function doctor(): BelongsTo

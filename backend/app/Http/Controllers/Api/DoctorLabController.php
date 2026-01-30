@@ -18,6 +18,7 @@ class DoctorLabController extends Controller
         $validated = $request->validate([
             'patient_id' => ['required', 'integer', 'exists:users,id'],
             'appointment_id' => ['nullable', 'integer', 'exists:appointments,id'],
+            'clinic_id' => ['nullable', 'integer', 'exists:clinics,id'],
             'test_type' => ['required', 'string', 'max:255'],
             'test_description' => ['nullable', 'string', 'max:2000'],
             'order_date' => ['required', 'date'],
@@ -33,6 +34,7 @@ class DoctorLabController extends Controller
             'order_number' => $orderNumber,
             'patient_id' => $validated['patient_id'],
             'doctor_id' => $doctor->id,
+            'clinic_id' => $validated['clinic_id'] ?? null,
             'appointment_id' => $validated['appointment_id'] ?? null,
             'test_type' => $validated['test_type'],
             'test_description' => $validated['test_description'] ?? null,
@@ -43,7 +45,7 @@ class DoctorLabController extends Controller
             'instructions' => $validated['instructions'] ?? null,
         ]);
 
-        return response()->json($labOrder->load(['patient', 'doctor']), 201);
+        return response()->json($labOrder->load(['patient', 'doctor', 'clinic']), 201);
     }
 
     public function getPatientResults(Request $request, int $patientId)
@@ -58,8 +60,7 @@ class DoctorLabController extends Controller
 
         $orders = LabOrder::query()
             ->where('patient_id', $patientId)
-            ->where('doctor_id', $doctor->id)
-            ->with(['results'])
+            ->with(['results', 'doctor:id,first_name,last_name,email', 'clinic:id,name'])
             ->orderBy('order_date', 'desc')
             ->get();
 
