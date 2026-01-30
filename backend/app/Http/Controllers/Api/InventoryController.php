@@ -41,6 +41,13 @@ class InventoryController extends Controller
 
     public function store(Request $request)
     {
+        // Debug: Log what's being received
+        \Log::info('Inventory Store Request:', [
+            'all' => $request->all(),
+            'content' => $request->getContent(),
+            'content_type' => $request->header('Content-Type'),
+        ]);
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'generic_name' => 'nullable|string|max:255',

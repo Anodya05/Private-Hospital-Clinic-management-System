@@ -95,12 +95,98 @@ const PharmacistDashboard: React.FC = () => {
     category: '',
     quantity: '',
     unit: '',
+    unit_price: '',
+    selling_price: '',
     expiry_date: '',
     batch_number: '',
     supplier_name: '',
     low_stock_threshold: '',
   });
   const [inventorySaving, setInventorySaving] = useState(false);
+  
+  // Drug search dropdown state
+  const [drugSearchTerm, setDrugSearchTerm] = useState('');
+  const [showDrugDropdown, setShowDrugDropdown] = useState(false);
+  
+  // List of 50 common drugs
+  const drugsList = [
+    { name: "Paracetamol 500mg", generic_name: "Acetaminophen", category: "Pain Relief", unit: "tablets" },
+    { name: "Ibuprofen 400mg", generic_name: "Ibuprofen", category: "Pain Relief", unit: "tablets" },
+    { name: "Aspirin 100mg", generic_name: "Acetylsalicylic Acid", category: "Pain Relief", unit: "tablets" },
+    { name: "Amoxicillin 500mg", generic_name: "Amoxicillin", category: "Antibiotics", unit: "capsules" },
+    { name: "Azithromycin 250mg", generic_name: "Azithromycin", category: "Antibiotics", unit: "tablets" },
+    { name: "Ciprofloxacin 500mg", generic_name: "Ciprofloxacin", category: "Antibiotics", unit: "tablets" },
+    { name: "Doxycycline 100mg", generic_name: "Doxycycline", category: "Antibiotics", unit: "capsules" },
+    { name: "Metronidazole 400mg", generic_name: "Metronidazole", category: "Antibiotics", unit: "tablets" },
+    { name: "Cephalexin 500mg", generic_name: "Cephalexin", category: "Antibiotics", unit: "capsules" },
+    { name: "Clindamycin 300mg", generic_name: "Clindamycin", category: "Antibiotics", unit: "capsules" },
+    { name: "Metformin 500mg", generic_name: "Metformin", category: "Diabetes", unit: "tablets" },
+    { name: "Metformin 850mg", generic_name: "Metformin", category: "Diabetes", unit: "tablets" },
+    { name: "Glibenclamide 5mg", generic_name: "Glibenclamide", category: "Diabetes", unit: "tablets" },
+    { name: "Insulin Regular 100IU/ml", generic_name: "Insulin", category: "Diabetes", unit: "vials" },
+    { name: "Omeprazole 20mg", generic_name: "Omeprazole", category: "Gastrointestinal", unit: "capsules" },
+    { name: "Pantoprazole 40mg", generic_name: "Pantoprazole", category: "Gastrointestinal", unit: "tablets" },
+    { name: "Ranitidine 150mg", generic_name: "Ranitidine", category: "Gastrointestinal", unit: "tablets" },
+    { name: "Domperidone 10mg", generic_name: "Domperidone", category: "Gastrointestinal", unit: "tablets" },
+    { name: "Loperamide 2mg", generic_name: "Loperamide", category: "Gastrointestinal", unit: "capsules" },
+    { name: "Lisinopril 10mg", generic_name: "Lisinopril", category: "Cardiovascular", unit: "tablets" },
+    { name: "Amlodipine 5mg", generic_name: "Amlodipine", category: "Cardiovascular", unit: "tablets" },
+    { name: "Amlodipine 10mg", generic_name: "Amlodipine", category: "Cardiovascular", unit: "tablets" },
+    { name: "Atorvastatin 20mg", generic_name: "Atorvastatin", category: "Cardiovascular", unit: "tablets" },
+    { name: "Atorvastatin 40mg", generic_name: "Atorvastatin", category: "Cardiovascular", unit: "tablets" },
+    { name: "Metoprolol 50mg", generic_name: "Metoprolol", category: "Cardiovascular", unit: "tablets" },
+    { name: "Losartan 50mg", generic_name: "Losartan", category: "Cardiovascular", unit: "tablets" },
+    { name: "Furosemide 40mg", generic_name: "Furosemide", category: "Cardiovascular", unit: "tablets" },
+    { name: "Hydrochlorothiazide 25mg", generic_name: "Hydrochlorothiazide", category: "Cardiovascular", unit: "tablets" },
+    { name: "Warfarin 5mg", generic_name: "Warfarin", category: "Cardiovascular", unit: "tablets" },
+    { name: "Clopidogrel 75mg", generic_name: "Clopidogrel", category: "Cardiovascular", unit: "tablets" },
+    { name: "Salbutamol Inhaler 100mcg", generic_name: "Salbutamol", category: "Respiratory", unit: "units" },
+    { name: "Beclomethasone Inhaler", generic_name: "Beclomethasone", category: "Respiratory", unit: "units" },
+    { name: "Montelukast 10mg", generic_name: "Montelukast", category: "Respiratory", unit: "tablets" },
+    { name: "Cetirizine 10mg", generic_name: "Cetirizine", category: "Antihistamines", unit: "tablets" },
+    { name: "Loratadine 10mg", generic_name: "Loratadine", category: "Antihistamines", unit: "tablets" },
+    { name: "Chlorpheniramine 4mg", generic_name: "Chlorpheniramine", category: "Antihistamines", unit: "tablets" },
+    { name: "Diazepam 5mg", generic_name: "Diazepam", category: "Neurological", unit: "tablets" },
+    { name: "Alprazolam 0.5mg", generic_name: "Alprazolam", category: "Neurological", unit: "tablets" },
+    { name: "Gabapentin 300mg", generic_name: "Gabapentin", category: "Neurological", unit: "capsules" },
+    { name: "Carbamazepine 200mg", generic_name: "Carbamazepine", category: "Neurological", unit: "tablets" },
+    { name: "Tramadol 50mg", generic_name: "Tramadol", category: "Pain Relief", unit: "capsules" },
+    { name: "Codeine 30mg", generic_name: "Codeine", category: "Pain Relief", unit: "tablets" },
+    { name: "Prednisone 5mg", generic_name: "Prednisone", category: "Anti-inflammatory", unit: "tablets" },
+    { name: "Dexamethasone 4mg", generic_name: "Dexamethasone", category: "Anti-inflammatory", unit: "tablets" },
+    { name: "Hydrocortisone Cream 1%", generic_name: "Hydrocortisone", category: "Dermatological", unit: "units" },
+    { name: "Clotrimazole Cream 1%", generic_name: "Clotrimazole", category: "Dermatological", unit: "units" },
+    { name: "Vitamin C 1000mg", generic_name: "Ascorbic Acid", category: "Vitamins", unit: "tablets" },
+    { name: "Vitamin D3 1000IU", generic_name: "Cholecalciferol", category: "Vitamins", unit: "capsules" },
+    { name: "Vitamin B Complex", generic_name: "B Vitamins", category: "Vitamins", unit: "tablets" },
+    { name: "Folic Acid 5mg", generic_name: "Folic Acid", category: "Vitamins", unit: "tablets" },
+    { name: "Iron Sulfate 200mg", generic_name: "Ferrous Sulfate", category: "Vitamins", unit: "tablets" },
+    { name: "Calcium Carbonate 500mg", generic_name: "Calcium", category: "Vitamins", unit: "tablets" },
+    { name: "Eye Drops (Artificial Tears)", generic_name: "Artificial Tears", category: "Ophthalmic", unit: "bottles" },
+    { name: "Timolol Eye Drops 0.5%", generic_name: "Timolol", category: "Ophthalmic", unit: "bottles" },
+  ];
+
+  // Filter drugs based on search term
+  const filteredDrugs = useMemo(() => {
+    if (!drugSearchTerm.trim()) return drugsList;
+    const search = drugSearchTerm.toLowerCase();
+    return drugsList.filter(d => 
+      d.name.toLowerCase().includes(search) || 
+      d.generic_name.toLowerCase().includes(search)
+    );
+  }, [drugSearchTerm]);
+
+  // Handle drug selection
+  const handleDrugSelect = (drug: typeof drugsList[0]) => {
+    setInventoryForm(prev => ({
+      ...prev,
+      drug_name: drug.name,
+      category: drug.category,
+      unit: drug.unit,
+    }));
+    setDrugSearchTerm(drug.name);
+    setShowDrugDropdown(false);
+  };
 
   const [controlledDrugsLoaded, setControlledDrugsLoaded] = useState(false);
   const [controlledDrugsLoading, setControlledDrugsLoading] = useState(false);
@@ -250,11 +336,14 @@ const PharmacistDashboard: React.FC = () => {
   const openInventoryModal = (item?: InventoryItem) => {
     if (item) {
       setEditingInventoryItem(item);
+      setDrugSearchTerm(item.name);
       setInventoryForm({
         drug_name: item.name,
         category: item.category,
         quantity: item.quantity.toString(),
         unit: item.unit,
+        unit_price: item.unit_price?.toString() || '',
+        selling_price: item.selling_price?.toString() || '',
         expiry_date: item.expiry_date,
         batch_number: item.batch_number || '',
         supplier_name: item.supplier?.name || '',
@@ -262,11 +351,14 @@ const PharmacistDashboard: React.FC = () => {
       });
     } else {
       setEditingInventoryItem(null);
+      setDrugSearchTerm('');
       setInventoryForm({
         drug_name: '',
         category: '',
         quantity: '',
         unit: '',
+        unit_price: '',
+        selling_price: '',
         expiry_date: '',
         batch_number: '',
         supplier_name: '',
@@ -279,11 +371,15 @@ const PharmacistDashboard: React.FC = () => {
   const closeInventoryModal = () => {
     setInventoryModalOpen(false);
     setEditingInventoryItem(null);
+    setDrugSearchTerm('');
+    setShowDrugDropdown(false);
     setInventoryForm({
       drug_name: '',
       category: '',
       quantity: '',
       unit: '',
+      unit_price: '',
+      selling_price: '',
       expiry_date: '',
       batch_number: '',
       supplier_name: '',
@@ -292,7 +388,22 @@ const PharmacistDashboard: React.FC = () => {
   };
 
   const saveInventoryItem = async () => {
-    if (!inventoryForm.drug_name.trim()) return;
+    if (!inventoryForm.drug_name.trim()) {
+      setError('Drug name is required');
+      return;
+    }
+    if (!inventoryForm.unit) {
+      setError('Unit is required');
+      return;
+    }
+    if (!inventoryForm.unit_price || parseFloat(inventoryForm.unit_price) < 0.01) {
+      setError('Unit price must be at least $0.01');
+      return;
+    }
+    if (!inventoryForm.selling_price || parseFloat(inventoryForm.selling_price) < 0.01) {
+      setError('Selling price must be at least $0.01');
+      return;
+    }
 
     setInventorySaving(true);
     setError(null);
@@ -303,6 +414,8 @@ const PharmacistDashboard: React.FC = () => {
         category: inventoryForm.category,
         quantity: parseInt(inventoryForm.quantity) || 0,
         unit: inventoryForm.unit,
+        unit_price: parseFloat(inventoryForm.unit_price) || 0.01,
+        selling_price: parseFloat(inventoryForm.selling_price) || 0.01,
         expiry_date: inventoryForm.expiry_date,
         batch_number: inventoryForm.batch_number,
         reorder_level: parseInt(inventoryForm.low_stock_threshold) || 0,
@@ -1184,34 +1297,63 @@ const PharmacistDashboard: React.FC = () => {
                       )}
 
                       <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Drug Name</label>
-                          <input
-                            type="text"
-                            value={inventoryForm.drug_name}
-                            onChange={(e) => setInventoryForm(prev => ({ ...prev, drug_name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                          <select
-                            value={inventoryForm.category}
-                            onChange={(e) => setInventoryForm(prev => ({ ...prev, category: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                          >
-                            <option value="">Select Category</option>
-                            <option value="analgesics">Analgesics</option>
-                            <option value="antibiotics">Antibiotics</option>
-                            <option value="antihistamines">Antihistamines</option>
-                            <option value="cardiovascular">Cardiovascular</option>
-                            <option value="dermatological">Dermatological</option>
-                            <option value="gastrointestinal">Gastrointestinal</option>
-                            <option value="respiratory">Respiratory</option>
-                            <option value="other">Other</option>
-                          </select>
+                        {/* Searchable Drug Dropdown */}
+                        <div className="relative">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Search & Select Drug *</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Type to search drugs..."
+                              value={drugSearchTerm}
+                              onChange={(e) => {
+                                setDrugSearchTerm(e.target.value);
+                                setShowDrugDropdown(true);
+                                if (!e.target.value) {
+                                  setInventoryForm(prev => ({ ...prev, drug_name: '', category: '', unit: '' }));
+                                }
+                              }}
+                              onFocus={() => setShowDrugDropdown(true)}
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${!inventoryForm.drug_name ? 'border-red-300' : 'border-gray-300'}`}
+                            />
+                            {drugSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDrugSearchTerm('');
+                                  setInventoryForm(prev => ({ ...prev, drug_name: '', category: '', unit: '' }));
+                                  setShowDrugDropdown(false);
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          {/* Dropdown List */}
+                          {showDrugDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                              {filteredDrugs.length > 0 ? (
+                                filteredDrugs.map((drug) => (
+                                  <button
+                                    type="button"
+                                    key={drug.name}
+                                    onClick={() => handleDrugSelect(drug)}
+                                    className={`w-full px-3 py-2 text-left hover:bg-teal-50 transition-colors border-b border-gray-100 last:border-b-0 ${inventoryForm.drug_name === drug.name ? 'bg-teal-50 text-teal-700' : ''}`}
+                                  >
+                                    <div className="font-medium text-gray-800 text-sm">{drug.name}</div>
+                                    <div className="text-xs text-gray-500">{drug.generic_name} • {drug.category}</div>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-3 py-2 text-gray-500 text-center text-sm">
+                                  No drugs found matching "{drugSearchTerm}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {inventoryForm.drug_name && (
+                            <p className="text-teal-600 text-xs mt-1">✓ Selected: {inventoryForm.drug_name}</p>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -1226,12 +1368,14 @@ const PharmacistDashboard: React.FC = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
                             <select
                               value={inventoryForm.unit}
                               onChange={(e) => setInventoryForm(prev => ({ ...prev, unit: e.target.value }))}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              required
                             >
+                              <option value="">Select Unit...</option>
                               <option value="tablets">Tablets</option>
                               <option value="capsules">Capsules</option>
                               <option value="ml">ml</option>
@@ -1240,6 +1384,35 @@ const PharmacistDashboard: React.FC = () => {
                               <option value="bottles">Bottles</option>
                               <option value="vials">Vials</option>
                             </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price ($) *</label>
+                            <input
+                              type="number"
+                              value={inventoryForm.unit_price}
+                              onChange={(e) => setInventoryForm(prev => ({ ...prev, unit_price: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              min="0.01"
+                              step="0.01"
+                              placeholder="0.00"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price ($) *</label>
+                            <input
+                              type="number"
+                              value={inventoryForm.selling_price}
+                              onChange={(e) => setInventoryForm(prev => ({ ...prev, selling_price: e.target.value }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              min="0.01"
+                              step="0.01"
+                              placeholder="0.00"
+                              required
+                            />
                           </div>
                         </div>
 
