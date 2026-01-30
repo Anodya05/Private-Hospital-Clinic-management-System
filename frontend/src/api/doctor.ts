@@ -196,6 +196,10 @@ export const doctorApi = {
       });
       return response.data;
     },
+    create: async (payload: any): Promise<any> => {
+      const response = await http.post(`${API_ENDPOINTS.DOCTOR_PATIENTS}`, payload);
+      return response.data;
+    },
   },
 };
 
