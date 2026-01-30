@@ -91,6 +91,13 @@ export const doctorApi = {
       const response = await http.post<any>(API_ENDPOINTS.DOCTOR_PATIENTS, payload);
       return response.data;
     },
+    
+    searchByPhone: async (phoneNumber: string): Promise<{ data: PatientRecord | null }> => {
+      const response = await http.get<{ data: PatientRecord | null }>(`${API_ENDPOINTS.PATIENTS}/search`, {
+        params: { phone: phoneNumber }
+      });
+      return response.data;
+    },
   },
 
   diagnoses: {
@@ -185,19 +192,6 @@ export const doctorApi = {
 
     referPatient: async (payload: CreateClinicReferralPayload): Promise<any> => {
       const response = await http.post(API_ENDPOINTS.CLINIC_REFERRAL, payload);
-      return response.data;
-    },
-  },
-
-  patients: {
-    searchByPhone: async (phoneNumber: string): Promise<{ data: PatientRecord | null }> => {
-      const response = await http.get<{ data: PatientRecord | null }>(`${API_ENDPOINTS.PATIENTS}/search`, {
-        params: { phone: phoneNumber }
-      });
-      return response.data;
-    },
-    create: async (payload: any): Promise<any> => {
-      const response = await http.post(`${API_ENDPOINTS.DOCTOR_PATIENTS}`, payload);
       return response.data;
     },
   },
