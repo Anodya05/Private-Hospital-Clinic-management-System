@@ -12,7 +12,8 @@ import CreateUser from './pages/admin/CreateUser';
 import EditUser from './pages/admin/EditUser';
 import Inventory from './pages/admin/Inventory';
 import Reports from './pages/admin/Reports';
-import Departments from './pages/admin/Departments'; // <--- NEW IMPORT
+import Departments from './pages/admin/Departments';
+import Appointments from './pages/admin/Appointments'; // <--- NEW IMPORT ADDED HERE
 import NotImplemented from './pages/admin/NotImplemented';
 
 // --- Home Page Components ---
@@ -105,11 +106,11 @@ const App: React.FC = () => (
         <Route path="reports" element={<Reports />} />
         <Route path="inventory" element={<Inventory />} />
         
-        {/* --- CONNECTED DEPARTMENT PAGE --- */}
+        {/* Connected Pages */}
         <Route path="departments" element={<Departments />} />
+        <Route path="appointments" element={<Appointments />} /> {/* <--- UPDATED THIS LINE */}
 
         {/* Placeholders for Future Features */}
-        <Route path="appointments" element={<NotImplemented />} />
         <Route path="billing" element={<NotImplemented />} />
         <Route path="settings" element={<NotImplemented />} />
     </Route>
@@ -232,4 +233,5 @@ const App: React.FC = () => (
   </Routes>
 );
 
-export default App;
+
+export default App;   

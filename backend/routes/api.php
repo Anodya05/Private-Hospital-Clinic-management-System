@@ -76,6 +76,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // --- NEW: Edit & Delete Routes ---
     Route::put('/inventory/{id}', [AdminController::class, 'updateDrug']);
     Route::delete('/inventory/{id}', [AdminController::class, 'deleteDrug']);
+
+
+    // Appointments
+    Route::get('/appointments', [AdminController::class, 'getAppointments']);
+    Route::put('/appointments/{id}', [AdminController::class, 'updateAppointment']); // <--- NEW LINE
+    Route::delete('/appointments/{id}', [AdminController::class, 'deleteAppointment']);
 });
 
 // ==========================================
