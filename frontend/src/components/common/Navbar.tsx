@@ -10,9 +10,16 @@ const Navbar: React.FC<NavbarProps> = ({ isScrolled }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // --- FIX START ---
   // Check if user is logged in
   const isAuthenticated = !!localStorage.getItem('authToken');
-  const authUser = isAuthenticated ? JSON.parse(localStorage.getItem('authUser') || '{}') : null;
+  
+  // Safe parsing logic: Get the string, check if it's valid, then parse.
+  const storedUser = localStorage.getItem('authUser');
+  const authUser = (isAuthenticated && storedUser && storedUser !== "undefined") 
+    ? JSON.parse(storedUser) 
+    : null;
+  // --- FIX END ---
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
