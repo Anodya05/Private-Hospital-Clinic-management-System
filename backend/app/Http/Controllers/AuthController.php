@@ -1,23 +1,27 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\PatientProfile;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log; // Added for cleaner logging
 use Spatie\Permission\Models\Role as SpatieRole;
 
 class AuthController extends Controller
 {
+    /**
+     * Patient-only registration
+     */
     public function register(Request $request)
     {
-        \Log::info('Registration attempt', $request->all());
+        Log::info('Registration attempt', $request->all());
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -37,18 +41,17 @@ class AuthController extends Controller
             'guardian_relationship' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Public signup is patient-only
-        $roleName = 'patient';
+        $roleName = 'patient'; // patient-only signup
 
+        // Process name into first/last
         $fullName = trim($data['name']);
         $parts = preg_split('/\s+/', $fullName) ?: [];
         $firstName = $parts[0] ?? $fullName;
         $lastName = count($parts) > 1 ? trim(implode(' ', array_slice($parts, 1))) : 'Patient';
 
         $usernameBase = Str::slug($firstName . ' ' . $lastName, '');
-        if ($usernameBase === '') {
-            $usernameBase = 'user';
-        }
+        if ($usernameBase === '') $usernameBase = 'user';
+
         $username = $usernameBase;
         $suffix = 1;
         while (User::where('username', $username)->exists()) {
@@ -56,23 +59,28 @@ class AuthController extends Controller
             $suffix++;
         }
 
-        // Build user data depending on whether a "name" column exists
+        // Prepare user data
         $userData = [
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ];
 
+        // Flexible handling for database columns
         if (Schema::hasColumn('users', 'name')) {
             $userData['name'] = $fullName;
         } else {
             $userData['first_name'] = $firstName;
             $userData['last_name'] = $lastName ?: 'Patient';
+        }
+        
+        // Only add username if the column exists
+        if (Schema::hasColumn('users', 'username')) {
             $userData['username'] = $username;
         }
 
         $user = User::create($userData);
 
-        // Create patient profile with additional information
+        // Create patient profile
         PatientProfile::create([
             'user_id' => $user->id,
             'phone' => $data['phone'] ?? null,
@@ -89,21 +97,30 @@ class AuthController extends Controller
             'guardian_relationship' => $data['guardian_relationship'] ?? null,
         ]);
 
-        // Assign role using Spatie Permission (and create if missing)
-        SpatieRole::findOrCreate($roleName, 'sanctum');
+        // Assign role using Spatie Permission
+        // Ensure guard matches your config (usually 'web' or 'api')
+        SpatieRole::findOrCreate($roleName, 'web'); 
         $user->assignRole($roleName);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        \Log::info('Registration successful for user', ['id' => $user->id, 'email' => $user->email]);
+        Log::info('Registration successful', ['id' => $user->id, 'email' => $user->email]);
 
         return response()->json([
             'message' => 'Registration successful.',
             'token' => $token,
-            'user' => $this->formatUserData($user),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'email' => $user->email,
+                'roles' => $user->roles->pluck('name')->toArray(),
+            ],
         ], 201);
     }
 
+    /**
+     * Login for all roles
+     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -111,7 +128,6 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        // Search by email only
         $user = User::where('email', $credentials['login'])->first();
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
@@ -120,18 +136,31 @@ class AuthController extends Controller
             ]);
         }
 
+        // Revoke previous tokens to prevent token accumulation
         $user->tokens()->delete();
+
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        $roles = $user->roles->pluck('name')->toArray();
 
         return response()->json([
             'message' => 'Login successful.',
             'token' => $token,
-            'user' => $this->formatUserData($user),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'email' => $user->email,
+                'roles' => $roles,
+            ],
         ]);
     }
 
+    /**
+     * Logout user
+     */
     public function logout(Request $request)
     {
+        // Safe navigation in case user is not authenticated handled by middleware usually
         $request->user()?->tokens()->delete();
 
         return response()->json([
@@ -139,41 +168,21 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Get current authenticated user
+     */
     public function me(Request $request)
     {
         $user = $request->user();
+        $roles = $user->roles->pluck('name')->toArray();
 
         return response()->json([
-            'user' => $this->formatUserData($user),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'email' => $user->email,
+                'roles' => $roles,
+            ],
         ]);
-    }
-
-    /**
-     * Helper to format user data consistently.
-     * Checks both 'role_id' relation and Spatie roles to find the correct role name.
-     */
-    private function formatUserData($user)
-    {
-        // Load the role relationship if it exists (for role_id)
-        $user->load('role');
-
-        // Determine role: Check role_id relation first, then Spatie, then default to patient
-        $roleName = 'patient';
-        
-        if ($user->role) {
-            $roleName = $user->role->name;
-        } elseif ($user->roles && $user->roles->first()) {
-            $roleName = $user->roles->first()->name;
-        }
-
-        return [
-            'id' => $user->id,
-            'first_name' => $user->first_name ?? $user->name,
-            'last_name' => $user->last_name ?? '',
-            'name' => $user->name ?? ($user->first_name . ' ' . $user->last_name),
-            'username' => $user->username,
-            'email' => $user->email,
-            'role' => $roleName, // This now returns a String (e.g., "admin"), not a number
-        ];
     }
 }

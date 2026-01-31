@@ -16,6 +16,7 @@ class PrescriptionItem extends Model
         'quantity',
         'dosage',
         'frequency',
+        'meal_timing',
         'duration_days',
         'instructions',
         'unit_price',

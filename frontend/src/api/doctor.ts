@@ -124,6 +124,16 @@ export const doctorApi = {
       const response = await http.get<DoctorPrescription>(API_ENDPOINTS.DOCTOR_PRESCRIPTION_SHOW(String(id)));
       return response.data;
     },
+
+    update: async (id: number, payload: CreatePrescriptionPayload): Promise<DoctorPrescription> => {
+      const response = await http.put<DoctorPrescription>(API_ENDPOINTS.DOCTOR_PRESCRIPTION_SHOW(String(id)), payload);
+      return response.data;
+    },
+
+    delete: async (id: number): Promise<{ message: string }> => {
+      const response = await http.delete<{ message: string }>(API_ENDPOINTS.DOCTOR_PRESCRIPTION_SHOW(String(id)));
+      return response.data;
+    },
   },
 
   labs: {

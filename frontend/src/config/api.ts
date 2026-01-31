@@ -93,6 +93,15 @@ export const API_ENDPOINTS = {
   DOCTOR_LAB_RESULTS: (patientId: string) => `${API_BASE_URL}/api/doctor/labs/results/${patientId}`,
   DOCTOR_LAB_RESULT_REVIEW: (id: string) => `${API_BASE_URL}/api/doctor/labs/results/${id}/review`,
   DOCTOR_REFERRALS: `${API_BASE_URL}/api/doctor/referrals`,
+
+  // Doctor Queue
+  DOCTOR_QUEUE: `${API_BASE_URL}/api/doctor/queue`,
+  DOCTOR_QUEUE_NEXT: `${API_BASE_URL}/api/doctor/queue/next`,
+  DOCTOR_QUEUE_CALL_NEXT: `${API_BASE_URL}/api/doctor/queue/call-next`,
+  DOCTOR_QUEUE_STATUS: (id: string) => `${API_BASE_URL}/api/doctor/queue/${id}/status`,
+
+  // Clinics
+  CLINICS: `${API_BASE_URL}/api/clinics`,
 };
 
 export default API_BASE_URL;

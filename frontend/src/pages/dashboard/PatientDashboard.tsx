@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { patientApi } from '../../api/patient';
@@ -175,110 +175,116 @@ const PatientDashboard: React.FC = () => {
     setSelectedPrescription(null);
   };
 
+  const loadTeleconsultations = useCallback(async () => {
+    if (teleconsultationsLoaded || teleconsultationsLoading) return;
+    setError(null);
+    setTeleconsultationsLoading(true);
+    try {
+      const resp = await patientApi.teleconsultations.list();
+      setTeleconsultations(Array.isArray(resp.data) ? resp.data : []);
+      setTeleconsultationsLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load teleconsultations');
+    } finally {
+      setTeleconsultationsLoading(false);
+    }
+  }, [teleconsultationsLoaded, teleconsultationsLoading]);
+
+  const loadEhr = useCallback(async () => {
+    if (ehrLoaded || ehrLoading) return;
+    setError(null);
+    setEhrLoading(true);
+    try {
+      const resp = await patientApi.ehr.list();
+      setEhrRecords(Array.isArray(resp.data) ? resp.data : []);
+      setEhrLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load EHR records');
+    } finally {
+      setEhrLoading(false);
+    }
+  }, [ehrLoaded, ehrLoading]);
+
+  const loadBilling = useCallback(async () => {
+    if (billingLoaded || billingLoading) return;
+    setError(null);
+    setBillingLoading(true);
+    try {
+      const resp = await patientApi.billing.invoices();
+      setInvoices(Array.isArray(resp.data) ? resp.data : []);
+      setBillingLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load invoices');
+    } finally {
+      setBillingLoading(false);
+    }
+  }, [billingLoaded, billingLoading]);
+
+  const loadFeedback = useCallback(async () => {
+    if (feedbackLoaded || feedbackLoading) return;
+    setError(null);
+    setFeedbackLoading(true);
+    try {
+      const resp = await patientApi.feedback.list();
+      setFeedbackItems(Array.isArray(resp.data) ? resp.data : []);
+      setFeedbackLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load feedback');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [feedbackLoaded, feedbackLoading]);
+
+  const loadNotificationsLazy = useCallback(async () => {
+    if (notificationsLoaded || notificationsLoading) return;
+    setError(null);
+    setNotificationsLoading(true);
+    try {
+      const resp = await patientApi.notifications.list();
+      setNotifications(Array.isArray(resp.data) ? resp.data : []);
+      setNotificationsLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load notifications');
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [notificationsLoaded, notificationsLoading]);
+
+  const loadPrescriptions = useCallback(async () => {
+    if (prescriptionsLoaded || prescriptionsLoading) return;
+    setError(null);
+    setPrescriptionsLoading(true);
+    try {
+      const resp = await patientApi.prescriptions.list();
+      setPrescriptions(Array.isArray(resp.data) ? resp.data : []);
+      setPrescriptionsLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load prescriptions');
+    } finally {
+      setPrescriptionsLoading(false);
+    }
+  }, [prescriptionsLoaded, prescriptionsLoading]);
+
   useEffect(() => {
-    const loadTeleconsultations = async () => {
-      setError(null);
-      setTeleconsultationsLoading(true);
-      try {
-        const resp = await patientApi.teleconsultations.list();
-        setTeleconsultations(Array.isArray(resp.data) ? resp.data : []);
-        setTeleconsultationsLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load teleconsultations');
-      } finally {
-        setTeleconsultationsLoading(false);
-      }
-    };
-
-    const loadEhr = async () => {
-      setError(null);
-      setEhrLoading(true);
-      try {
-        const resp = await patientApi.ehr.list();
-        setEhrRecords(Array.isArray(resp.data) ? resp.data : []);
-        setEhrLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load EHR records');
-      } finally {
-        setEhrLoading(false);
-      }
-    };
-
-    const loadBilling = async () => {
-      setError(null);
-      setBillingLoading(true);
-      try {
-        const resp = await patientApi.billing.invoices();
-        setInvoices(Array.isArray(resp.data) ? resp.data : []);
-        setBillingLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load invoices');
-      } finally {
-        setBillingLoading(false);
-      }
-    };
-
-    const loadFeedback = async () => {
-      setError(null);
-      setFeedbackLoading(true);
-      try {
-        const resp = await patientApi.feedback.list();
-        setFeedbackItems(Array.isArray(resp.data) ? resp.data : []);
-        setFeedbackLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load feedback');
-      } finally {
-        setFeedbackLoading(false);
-      }
-    };
-
-    const loadNotifications = async () => {
-      setError(null);
-      setNotificationsLoading(true);
-      try {
-        const resp = await patientApi.notifications.list();
-        setNotifications(Array.isArray(resp.data) ? resp.data : []);
-        setNotificationsLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load notifications');
-      } finally {
-        setNotificationsLoading(false);
-      }
-    };
-
-    const loadPrescriptions = async () => {
-      setError(null);
-      setPrescriptionsLoading(true);
-      try {
-        const resp = await patientApi.prescriptions.list();
-        setPrescriptions(Array.isArray(resp.data) ? resp.data : []);
-        setPrescriptionsLoaded(true);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load prescriptions');
-      } finally {
-        setPrescriptionsLoading(false);
-      }
-    };
-
-    if (active === 'telemedicine' && !teleconsultationsLoaded && !teleconsultationsLoading) {
+    if (active === 'telemedicine') {
       loadTeleconsultations();
     }
-    if (active === 'medical_records' && !ehrLoaded && !ehrLoading) {
+    if (active === 'medical_records') {
       loadEhr();
     }
-    if (active === 'billing' && !billingLoaded && !billingLoading) {
+    if (active === 'billing') {
       loadBilling();
     }
-    if (active === 'feedback' && !feedbackLoaded && !feedbackLoading) {
+    if (active === 'feedback') {
       loadFeedback();
     }
-    if (active === 'notifications' && !notificationsLoaded && !notificationsLoading) {
-      loadNotifications();
+    if (active === 'notifications') {
+      loadNotificationsLazy();
     }
-    if (active === 'prescriptions' && !prescriptionsLoaded && !prescriptionsLoading) {
+    if (active === 'prescriptions') {
       loadPrescriptions();
     }
-  }, [active, teleconsultationsLoaded, teleconsultationsLoading, ehrLoaded, ehrLoading, billingLoaded, billingLoading, feedbackLoaded, feedbackLoading, notificationsLoaded, notificationsLoading, prescriptionsLoaded, prescriptionsLoading]);
+  }, [active, loadTeleconsultations, loadEhr, loadBilling, loadFeedback, loadNotificationsLazy, loadPrescriptions]);
 
   const refreshAppointments = async () => {
     setError(null);
