@@ -12,36 +12,16 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Role;
 use App\Models\PatientProfile;
+
 use App\Models\Prescription;
 use App\Models\ClinicReferral;
+=======
+use App\Models\Clinic;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
-
-    protected static function booted(): void
-    {
-        static::creating(function (User $user) {
-            if (empty($user->name)) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                if ($fallback === '') {
-                    $fallback = $user->username ?? 'user';
-                }
-                $user->name = $fallback;
-            }
-        });
-
-        static::updating(function (User $user) {
-            if (array_key_exists('name', $user->getDirty()) && $user->name === null) {
-                $fallback = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                if ($fallback === '') {
-                    $fallback = $user->username ?? 'user';
-                }
-                $user->name = $fallback;
-            }
-        });
-    }
 
     /**
      * The attributes that are mass assignable.
@@ -49,7 +29,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        // 'name', // Removed because your DB likely doesn't have this column
         'first_name',
         'last_name',
         'username',
@@ -58,6 +38,7 @@ class User extends Authenticatable
         'role_id',
         'is_active',
         'clinic_id',
+        'department_id', // Added this so you can assign departments
     ];
 
     /**
@@ -84,11 +65,17 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Get the role associated with the user (via role_id).
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Get the patient profile associated with the user.
+     */
     public function patientProfile(): HasOne
     {
         return $this->hasOne(PatientProfile::class, 'user_id');
@@ -104,18 +91,30 @@ class User extends Authenticatable
         return $this->hasMany(ClinicReferral::class, 'patient_id');
     }
 
+=======
+    /**
+     * Get the clinic associated with the user.
+     */
+    public function clinic(): BelongsTo
+    {
+        return $this->belongsTo(Clinic::class, 'clinic_id');
+    }
+
+    /**
+     * Virtual Attribute: 'name'
+     * Allows you to call $user->name even though the column doesn't exist.
+     */
     public function getNameAttribute(): string
     {
-        // If a 'name' column exists, Eloquent will return that; otherwise synthesize from parts
+        // If the database actually HAS a name column, use it.
         if (isset($this->attributes['name']) && $this->attributes['name'] !== null) {
             return (string) $this->attributes['name'];
         }
 
-        return trim($this->first_name . ' ' . $this->last_name);
-    }
-
-    public function clinic(): BelongsTo
-    {
-        return $this->belongsTo(Clinic::class, 'clinic_id');
+        // Otherwise, combine first and last name
+        $full = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        
+        // If both are empty, fall back to username
+        return $full === '' ? ($this->username ?? 'User') : $full;
     }
 }

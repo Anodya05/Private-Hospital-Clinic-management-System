@@ -17,10 +17,18 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     document.title = 'Login';
 
-    // Redirect if already authenticated
+    // --- FIX START: Safe Parsing Logic ---
     const isAuthenticated = !!localStorage.getItem('authToken');
+    
     if (isAuthenticated) {
-      const authUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+      // Get the raw string first
+      const storedAuthUser = localStorage.getItem('authUser');
+      
+      // Only parse if it exists and is NOT the string "undefined"
+      const authUser = (storedAuthUser && storedAuthUser !== "undefined") 
+        ? JSON.parse(storedAuthUser) 
+        : {};
+
       const role = authUser?.role?.toLowerCase() || 'patient';
 
       let redirectPath = '/portal';
@@ -45,6 +53,7 @@ const LoginPage: React.FC = () => {
       }
       navigate(redirectPath, { replace: true });
     }
+    // --- FIX END ---
   }, [navigate]);
 
   React.useEffect(() => {
@@ -74,10 +83,16 @@ const LoginPage: React.FC = () => {
       console.log('Login response:', response);
 
       localStorage.setItem('authToken', response.token);
-      localStorage.setItem('authUser', JSON.stringify(response.user));
+      
+      // --- FIX START: Only save user if it exists ---
+      if (response.user) {
+        localStorage.setItem('authUser', JSON.stringify(response.user));
+      }
+      // --- FIX END ---
 
       // Route based on user role
-      const userRole = response.user.role.toLowerCase();
+      // Check if response.user exists before accessing role
+      const userRole = response.user?.role?.toLowerCase() || 'patient'; 
       console.log('User role:', userRole);
 
       let redirectPath = '/portal';
