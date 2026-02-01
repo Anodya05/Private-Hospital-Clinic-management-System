@@ -2,7 +2,10 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// --- Imports ---
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\PrescriptionController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\SupplierController;
@@ -35,9 +38,16 @@ use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
 use App\Http\Controllers\Api\DoctorQueueController;
 use App\Http\Controllers\Api\DoctorClinicReferralController;
+use App\Http\Controllers\Api\DoctorDashboardController;
 use App\Http\Controllers\Api\ClinicController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\AIController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
@@ -49,7 +59,32 @@ Route::prefix('auth')->group(function () {
     });
 });
 
-// Pharmacy & Inventory Management Routes (Pharmacist only)
+// ==========================================
+// ADMIN ROUTES
+// ==========================================
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    // User Management
+    Route::get('/users', [AdminController::class, 'getUsers']);
+    Route::post('/users', [AdminController::class, 'createUser']);
+    Route::put('/users/{id}', [AdminController::class, 'updateUser']);
+    Route::patch('/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus']);
+
+    // Reporting & Analytics
+    Route::get('/stats', [AdminController::class, 'getDashboardStats']);
+    Route::get('/doctor-performance', [AdminController::class, 'getDoctorPerformance']);
+
+    // Inventory Monitoring (Admin View)
+    Route::get('/inventory', [AdminController::class, 'getInventory']);
+    Route::post('/inventory', [AdminController::class, 'addDrug']);
+    
+    // --- NEW: Edit & Delete Routes ---
+    Route::put('/inventory/{id}', [AdminController::class, 'updateDrug']);
+    Route::delete('/inventory/{id}', [AdminController::class, 'deleteDrug']);
+});
+
+// ==========================================
+// PHARMACIST ROUTES
+// ==========================================
 Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->group(function () {
     // Prescriptions
     Route::get('prescriptions', [PrescriptionController::class, 'index']);
@@ -57,16 +92,16 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->gr
     Route::post('prescriptions/{id}/interaction-check', [PrescriptionController::class, 'checkInteractions']);
     Route::post('prescriptions/{id}/dispense', [PrescriptionController::class, 'dispense']);
     
-    // Inventory
+    // Inventory - Specific routes MUST come before {id} route
     Route::get('inventory', [InventoryController::class, 'index']);
+    Route::get('inventory/low-stock', [InventoryController::class, 'lowStock']);
+    Route::get('inventory/expiring-soon', [InventoryController::class, 'expiringSoon']);
+    Route::get('inventory/stats', [InventoryController::class, 'stats']);
     Route::post('inventory', [InventoryController::class, 'store']);
     Route::get('inventory/{id}', [InventoryController::class, 'show']);
     Route::put('inventory/{id}', [InventoryController::class, 'update']);
     Route::delete('inventory/{id}', [InventoryController::class, 'destroy']);
     Route::post('inventory/update', [InventoryController::class, 'update']);
-    Route::get('inventory/low-stock', [InventoryController::class, 'lowStock']);
-    Route::get('inventory/expiring-soon', [InventoryController::class, 'expiringSoon']);
-    Route::get('inventory/stats', [InventoryController::class, 'stats']);
     Route::post('purchase-request', [InventoryController::class, 'createPurchaseRequest']);
     
     // Controlled Substances
@@ -92,7 +127,9 @@ Route::get('clinics', [ClinicController::class, 'index']);
 Route::get('clinics/{id}/doctors', [ClinicController::class, 'doctors']);
 Route::get('clinics/{id}/slots', [ClinicController::class, 'slots']);
 
-// Patient Portal Routes (Patient only)
+// ==========================================
+// PATIENT ROUTES
+// ==========================================
 Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(function () {
     Route::get('profile', [PatientProfileController::class, 'show']);
     Route::put('profile', [PatientProfileController::class, 'update']);
@@ -118,6 +155,9 @@ Route::middleware(['auth:sanctum', 'role:patient'])->prefix('patient')->group(fu
     Route::get('prescriptions/{id}', [PatientPrescriptionController::class, 'show']);
 });
 
+// ==========================================
+// RECEPTIONIST ROUTES
+// ==========================================
 Route::middleware(['auth:sanctum', 'role:receptionist'])->prefix('receptionist')->group(function () {
     Route::get('dashboard/stats', [ReceptionistDashboardController::class, 'stats']);
 
@@ -160,8 +200,13 @@ Route::middleware(['auth:sanctum', 'role:receptionist'])->prefix('receptionist')
     Route::delete('referrals/{id}', [ReceptionistReferralController::class, 'destroy']);
 });
 
-// Doctor Portal Routes (Doctor only)
+// ==========================================
+// DOCTOR ROUTES
+// ==========================================
 Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(function () {
+    // Dashboard / Daily Summary
+    Route::get('dashboard/daily-summary', [DoctorDashboardController::class, 'dailySummary']);
+
     // Appointments
     Route::get('appointments', [DoctorAppointmentController::class, 'index']);
     Route::get('appointments/{id}', [DoctorAppointmentController::class, 'show']);
@@ -209,6 +254,7 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
 
     // Inventory (read-only for prescriptions)
     Route::get('inventory', [InventoryController::class, 'index']);
+
 
     // Queue
     Route::get('queue', [DoctorQueueController::class, 'index']);

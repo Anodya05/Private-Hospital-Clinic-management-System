@@ -101,6 +101,9 @@ export const API_ENDPOINTS = {
   DOCTOR_LAB_RESULT_REVIEW: (id: string) => `${API_BASE_URL}/api/doctor/labs/results/${id}/review`,
   DOCTOR_REFERRALS: `${API_BASE_URL}/api/doctor/referrals`,
 
+  // Doctor Dashboard
+  DOCTOR_DAILY_SUMMARY: `${API_BASE_URL}/api/doctor/dashboard/daily-summary`,
+
   // Doctor Queue
   DOCTOR_QUEUE: `${API_BASE_URL}/api/doctor/queue`,
   DOCTOR_QUEUE_NEXT: `${API_BASE_URL}/api/doctor/queue/next`,
