@@ -80,6 +80,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // --- NEW: Edit & Delete Routes ---
     Route::put('/inventory/{id}', [AdminController::class, 'updateDrug']);
     Route::delete('/inventory/{id}', [AdminController::class, 'deleteDrug']);
+
+
+    // Appointments
+    Route::get('/appointments', [AdminController::class, 'getAppointments']);
+    Route::put('/appointments/{id}', [AdminController::class, 'updateAppointment']); // <--- NEW LINE
+    Route::delete('/appointments/{id}', [AdminController::class, 'deleteAppointment']);
 });
 
 // ==========================================
@@ -284,4 +290,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('status', [AIController::class, 'getStatus']);
         Route::get('features', [AIController::class, 'getFeatures']);
     });
+<<<<<<< HEAD
+=======
+=======
+=======
+>>>>>>> 8b1ae59ac05efef9cafce80ef2eb0af94296fb91
 });
