@@ -90,10 +90,6 @@ class User extends Authenticatable
         return $this->hasMany(ClinicReferral::class, 'patient_id');
     }
 
-<<<<<<< HEAD
-=======
-=======
->>>>>>> 8b1ae59ac05efef9cafce80ef2eb0af94296fb91
     /**
      * Get the clinic associated with the user.
      */
