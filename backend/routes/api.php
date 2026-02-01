@@ -37,7 +37,10 @@ use App\Http\Controllers\Api\DoctorLabController;
 use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
 use App\Http\Controllers\Api\DoctorQueueController;
+use App\Http\Controllers\Api\DoctorClinicReferralController;
 use App\Http\Controllers\Api\ClinicController;
+use App\Http\Controllers\Api\PatientController;
+use App\Http\Controllers\Api\AIController;
 
 /*
 |--------------------------------------------------------------------------
@@ -244,6 +247,10 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::post('referrals', [DoctorReferralController::class, 'store']);
     Route::get('referrals', [DoctorReferralController::class, 'index']);
 
+    // Clinic Referrals
+    Route::post('clinic-referrals', [DoctorClinicReferralController::class, 'store']);
+    Route::get('clinic-referrals', [DoctorClinicReferralController::class, 'index']);
+
     // Patients (Doctor can register patients)
     Route::post('patients', [DoctorPatientController::class, 'store']);
 
@@ -257,5 +264,28 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::post('queue/call-next', [DoctorQueueController::class, 'callNext']);
     Route::put('queue/{id}/status', [DoctorQueueController::class, 'updateStatus']);
 });
+
+// Patient API (for doctors and staff to search patients)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('patients')->group(function () {
+        Route::get('search', [PatientController::class, 'searchByPhone']);
+        Route::get('{id}', [PatientController::class, 'show']);
+    });
+});
+
+// AI-Powered Routes (GPT-5.2-Codex)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('ai')->group(function () {
+        Route::post('chat', [AIController::class, 'chat']);
+        Route::post('medical/analysis', [AIController::class, 'medicalAnalysis']);
+        Route::post('medical/drug-interactions', [AIController::class, 'drugInteractions']);
+        Route::post('medical/diagnostics', [AIController::class, 'diagnostics']);
+        Route::post('medical/prescription-review', [AIController::class, 'prescriptionReview']);
+        Route::post('patient/insights', [AIController::class, 'patientInsights']);
+        Route::post('documents/generate', [AIController::class, 'generateDocument']);
+        Route::get('status', [AIController::class, 'getStatus']);
+        Route::get('features', [AIController::class, 'getFeatures']);
+    });
+=======
 =======
 });
