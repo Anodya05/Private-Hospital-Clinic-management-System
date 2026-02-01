@@ -6,12 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Appointment;
 use App\Models\Drug;
-use App\Models\Payment;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Spatie\Permission\Models\Role;
 use Carbon\Carbon;
 
 class AdminController extends Controller
@@ -127,24 +126,22 @@ class AdminController extends Controller
 
     public function getDashboardStats()
     {
-        // 1. Calculate Chart Data (Patient flow for the last 7 days)
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
             $count = Appointment::whereDate('appointment_date', $date->format('Y-m-d'))->count();
 
             $chartData[] = [
-                'name' => $date->format('D'), // Returns "Mon", "Tue"
+                'name' => $date->format('D'),
                 'patients' => $count
             ];
         }
 
-        // 2. Gather Real Counts for the Cards
         $totalUsers = User::count();
         $totalPatients = User::role('patient')->count();
         $totalDoctors = User::role('doctor')->count();
         $totalStaff = User::role(['pharmacist', 'receptionist'])->count();
-        $totalDepartments = 5; 
+        $totalDepartments = Department::count(); 
 
         return response()->json([
             'counts' => [
@@ -216,7 +213,6 @@ class AdminController extends Controller
         return response()->json(['message' => 'Medicine added successfully', 'drug' => $drug]);
     }
 
-    // --- NEW: Update Drug Function ---
     public function updateDrug(Request $request, $id)
     {
         $drug = Drug::findOrFail($id);
@@ -231,18 +227,104 @@ class AdminController extends Controller
             'name' => $validated['name'],
             'stock_quantity' => $validated['stock_quantity'],
             'expiry_date' => $validated['expiry_date'],
-            // Status is calculated dynamically, but we update the database record just in case
             'status' => $validated['stock_quantity'] < 10 ? 'Low Stock' : 'In Stock'
         ]);
 
         return response()->json(['message' => 'Medicine updated successfully', 'drug' => $drug]);
     }
 
-    // --- NEW: Delete Drug Function ---
     public function deleteDrug($id)
     {
         $drug = Drug::findOrFail($id);
         $drug->delete();
         return response()->json(['message' => 'Medicine deleted successfully']);
+    }
+
+    // ==========================================
+    // 4. DEPARTMENT MANAGEMENT
+    // ==========================================
+
+    public function getDepartments()
+    {
+        $departments = Department::with('doctors')->get()->map(function($dept) {
+            return [
+                'id' => $dept->id,
+                'name' => $dept->name,
+                'description' => $dept->description,
+                'status' => $dept->status,
+                'doctor_count' => $dept->doctors->count(),
+                'doctors' => $dept->doctors->map(function($doc) {
+                    return [
+                        'id' => $doc->id,
+                        'name' => $doc->name ?? $doc->first_name . ' ' . $doc->last_name,
+                    ];
+                })
+            ];
+        });
+
+        return response()->json($departments);
+    }
+
+    public function addDepartment(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|unique:departments',
+            'description' => 'nullable|string',
+        ]);
+
+        $dept = Department::create($validated);
+        return response()->json(['message' => 'Department created', 'department' => $dept]);
+    }
+
+    // ==========================================
+    // 5. APPOINTMENT MANAGEMENT
+    // ==========================================
+
+    public function getAppointments()
+    {
+        $appointments = Appointment::with(['patient', 'doctor', 'department'])
+            ->orderBy('appointment_date', 'desc')
+            ->get()
+            ->map(function ($appt) {
+                return [
+                    'id' => $appt->id,
+                    'patient_name' => $appt->patient->name ?? 'Unknown',
+                    'doctor_name' => $appt->doctor->name ?? 'Unknown',
+                    'department' => $appt->department->name ?? 'General',
+                    'date' => $appt->appointment_date,
+                    'status' => $appt->status,
+                    'reason' => $appt->reason,
+                    'notes' => $appt->notes, // Included notes so they can be edited
+                ];
+            });
+
+        return response()->json($appointments);
+    }
+
+    // --- NEW: Update Appointment Function ---
+    public function updateAppointment(Request $request, $id)
+    {
+        $appointment = Appointment::findOrFail($id);
+        
+        $validated = $request->validate([
+            'appointment_date' => 'required|date',
+            'status' => 'required|string|in:Scheduled,Completed,Cancelled',
+            'notes' => 'nullable|string',
+        ]);
+
+        $appointment->update([
+            'appointment_date' => $validated['appointment_date'],
+            'status' => $validated['status'],
+            'notes' => $validated['notes'] ?? $appointment->notes,
+        ]);
+
+        return response()->json(['message' => 'Appointment updated successfully', 'appointment' => $appointment]);
+    }
+
+    public function deleteAppointment($id)
+    {
+        $appointment = Appointment::findOrFail($id);
+        $appointment->delete();
+        return response()->json(['message' => 'Appointment deleted successfully']);
     }
 }
