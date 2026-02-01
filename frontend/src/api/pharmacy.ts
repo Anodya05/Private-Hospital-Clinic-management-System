@@ -94,6 +94,17 @@ export const inventoryApi = {
     }).then(res => res.json());
   },
 
+  // --- ADDED THIS METHOD ---
+  dispense: (id: string, data: { quantity: number }) => {
+    // Assuming PHARMACIST_INVENTORY base URL is like '/api/pharmacist/inventory'
+    // This constructs: /api/pharmacist/inventory/{id}/dispense
+    return fetch(`${API_ENDPOINTS.PHARMACIST_INVENTORY}/${id}/dispense`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    }).then(res => res.json());
+  },
+
   getLowStock: () => {
     return fetch(API_ENDPOINTS.PHARMACIST_INVENTORY_LOW_STOCK, {
       headers: getAuthHeaders(),
@@ -347,4 +358,3 @@ export const pharmacistApi = {
     },
   },
 };
-
