@@ -15,6 +15,7 @@ class Prescription extends Model
         'prescription_number',
         'patient_id',
         'doctor_id',
+        'clinic_id',
         'pharmacist_id',
         'prescription_date',
         'status',
@@ -31,6 +32,11 @@ class Prescription extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(User::class, 'patient_id');
+    }
+
+    public function clinic(): BelongsTo
+    {
+        return $this->belongsTo(Clinic::class);
     }
 
     public function doctor(): BelongsTo

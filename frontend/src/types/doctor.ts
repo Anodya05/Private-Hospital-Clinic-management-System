@@ -243,6 +243,7 @@ export interface DoctorPrescriptionItem {
   quantity: number;
   dosage: string | null;
   frequency: string | null;
+  meal_timing: string | null;
   duration_days: number | null;
   instructions: string | null;
   unit_price: string;
@@ -265,6 +266,7 @@ export interface DoctorPrescriptionsResponse {
 export interface CreatePrescriptionPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   prescription_date: string;
   notes?: string | null;
   instructions?: string | null;
@@ -273,6 +275,7 @@ export interface CreatePrescriptionPayload {
     quantity: number;
     dosage?: string | null;
     frequency?: string | null;
+    meal_timing?: string | null;
     duration_days?: number | null;
     instructions?: string | null;
   }>;
@@ -331,6 +334,7 @@ export interface LabOrdersAndResultsResponse {
 export interface CreateLabOrderPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   test_type: string;
   test_description?: string | null;
   order_date: string;
@@ -394,6 +398,7 @@ export interface DoctorInventoryItem {
   name: string;
   generic_name?: string | null;
   brand_name?: string | null;
+  category?: string | null;
 }
 
 export interface PaginatedResponse<T> {

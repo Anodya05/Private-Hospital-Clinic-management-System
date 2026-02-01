@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\DoctorPrescriptionController;
 use App\Http\Controllers\Api\DoctorLabController;
 use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
+use App\Http\Controllers\Api\DoctorQueueController;
 use App\Http\Controllers\Api\ClinicController;
 
 /*
@@ -75,6 +76,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // --- NEW: Edit & Delete Routes ---
     Route::put('/inventory/{id}', [AdminController::class, 'updateDrug']);
     Route::delete('/inventory/{id}', [AdminController::class, 'deleteDrug']);
+
+
+    // Appointments
+    Route::get('/appointments', [AdminController::class, 'getAppointments']);
+    Route::put('/appointments/{id}', [AdminController::class, 'updateAppointment']); // <--- NEW LINE
+    Route::delete('/appointments/{id}', [AdminController::class, 'deleteAppointment']);
 });
 
 // ==========================================
@@ -225,6 +232,8 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::post('prescriptions', [DoctorPrescriptionController::class, 'store']);
     Route::get('prescriptions', [DoctorPrescriptionController::class, 'index']);
     Route::get('prescriptions/{id}', [DoctorPrescriptionController::class, 'show']);
+    Route::put('prescriptions/{id}', [DoctorPrescriptionController::class, 'update']);
+    Route::delete('prescriptions/{id}', [DoctorPrescriptionController::class, 'destroy']);
 
     // Lab Orders & Results
     Route::post('labs/orders', [DoctorLabController::class, 'createOrder']);
@@ -240,4 +249,13 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
 
     // Inventory (read-only for prescriptions)
     Route::get('inventory', [InventoryController::class, 'index']);
+
+
+    // Queue
+    Route::get('queue', [DoctorQueueController::class, 'index']);
+    Route::get('queue/next', [DoctorQueueController::class, 'next']);
+    Route::post('queue/call-next', [DoctorQueueController::class, 'callNext']);
+    Route::put('queue/{id}/status', [DoctorQueueController::class, 'updateStatus']);
+});
+=======
 });
