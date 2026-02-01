@@ -20,6 +20,10 @@ export interface DoctorAppointment {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -48,6 +52,10 @@ export interface DoctorTeleconsultation {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -108,6 +116,10 @@ export interface VitalSign {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -183,6 +195,10 @@ export interface Diagnosis {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -230,6 +246,10 @@ export interface DoctorPrescription {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   items?: DoctorPrescriptionItem[];
   created_at?: string;

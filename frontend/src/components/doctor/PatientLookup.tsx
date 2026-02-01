@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -11,8 +11,11 @@ import {
   FileText,
   Clock,
   AlertCircle,
-  CheckCircle2,
-  X
+  X,
+  TestTube,
+  Stethoscope,
+  Activity,
+  Heart
 } from 'lucide-react';
 import { doctorApi } from '../../api/doctor';
 import toast from 'react-hot-toast';
@@ -30,6 +33,15 @@ interface PatientRecord {
     blood_type?: string;
     city?: string;
     state?: string;
+    allergies?: string;
+    medical_conditions?: string;
+    emergency_contact?: string;
+  } | null;
+  last_consultation?: {
+    date: string;
+    time: string;
+    doctor_name: string;
+    reason?: string;
   } | null;
   prescriptions?: Array<{
     id: number;
@@ -40,6 +52,20 @@ interface PatientRecord {
     instructions?: string;
     status: string;
     prescribed_date: string;
+    doctor_name?: string;
+  }>;
+  lab_orders?: Array<{
+    id: number;
+    test_type: string;
+    test_description?: string;
+    status: string;
+    order_date: string;
+    due_date?: string;
+    result_date?: string;
+    result_value?: string;
+    result_unit?: string;
+    notes?: string;
+    instructions?: string;
     doctor_name?: string;
   }>;
   clinic_referrals?: Array<{
@@ -61,6 +87,7 @@ interface PatientLookupProps {
 
 const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [patientName, setPatientName] = useState('');
   const [loading, setLoading] = useState(false);
   const [patientRecord, setPatientRecord] = useState<PatientRecord | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -76,7 +103,7 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
     setPatientRecord(null);
 
     try {
-      const response = await doctorApi.patients.searchByPhone(phoneNumber.trim());
+      const response = await doctorApi.patients.searchByPhone(phoneNumber.trim(), patientName.trim() || undefined);
       if (response.data) {
         setPatientRecord(response.data);
       } else {
@@ -96,6 +123,7 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
 
   const handleClose = () => {
     setPhoneNumber('');
+    setPatientName('');
     setPatientRecord(null);
     setNotFound(false);
     onClose();
@@ -148,18 +176,32 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
         <div className="p-6">
           {/* Search Section */}
           <div className="mb-6">
-            <div className="flex gap-4">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Phone className="w-4 h-4 inline mr-1" />
-                  Patient Phone Number
+                  Phone Number *
                 </label>
                 <input
                   type="tel"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="Enter patient's phone number (e.g., +1234567890)"
+                  placeholder="e.g., +1234567890"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <User className="w-4 h-4 inline mr-1" />
+                  Patient Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="e.g., John Doe"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
@@ -167,7 +209,7 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
                 <button
                   onClick={handleSearch}
                   disabled={loading}
-                  className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <>
@@ -177,7 +219,7 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
                   ) : (
                     <>
                       <Search className="w-4 h-4" />
-                      <span>Search</span>
+                      <span>Search Records</span>
                     </>
                   )}
                 </button>
@@ -209,57 +251,185 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                {/* Patient Info */}
-                <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-lg p-6 border border-teal-200">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5 text-teal-600" />
-                    Patient Information
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                      <span className="text-sm font-medium text-gray-600">Name:</span>
-                      <p className="text-gray-800 font-semibold">{patientRecord.first_name} {patientRecord.last_name}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-600">Email:</span>
-                      <p className="text-gray-800">{patientRecord.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-600">Phone:</span>
-                      <p className="text-gray-800 font-semibold">{patientRecord.patient_profile?.phone || 'N/A'}</p>
-                    </div>
-                    {patientRecord.patient_profile?.date_of_birth && (
+                {/* Patient Info & Last Consultation */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Patient Basic Info */}
+                  <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-lg p-6 border border-teal-200">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5 text-teal-600" />
+                      Patient Information
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Date of Birth:</span>
-                        <p className="text-gray-800">{new Date(patientRecord.patient_profile.date_of_birth).toLocaleDateString()}</p>
+                        <span className="text-sm font-medium text-gray-600">Name:</span>
+                        <p className="text-gray-800 font-semibold">{patientRecord.first_name} {patientRecord.last_name}</p>
                       </div>
-                    )}
-                    {patientRecord.patient_profile?.gender && (
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Gender:</span>
-                        <p className="text-gray-800 capitalize">{patientRecord.patient_profile.gender}</p>
+                        <span className="text-sm font-medium text-gray-600">Phone:</span>
+                        <p className="text-gray-800 font-semibold">{patientRecord.patient_profile?.phone || 'N/A'}</p>
                       </div>
-                    )}
-                    {patientRecord.patient_profile?.blood_type && (
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Blood Type:</span>
-                        <p className="text-gray-800 font-semibold">{patientRecord.patient_profile.blood_type}</p>
+                        <span className="text-sm font-medium text-gray-600">Email:</span>
+                        <p className="text-gray-800 text-sm">{patientRecord.email}</p>
+                      </div>
+                      {patientRecord.patient_profile?.date_of_birth && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-600">Date of Birth:</span>
+                          <p className="text-gray-800">{new Date(patientRecord.patient_profile.date_of_birth).toLocaleDateString()}</p>
+                        </div>
+                      )}
+                      {patientRecord.patient_profile?.gender && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-600">Gender:</span>
+                          <p className="text-gray-800 capitalize">{patientRecord.patient_profile.gender}</p>
+                        </div>
+                      )}
+                      {patientRecord.patient_profile?.blood_type && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-600">Blood Type:</span>
+                          <p className="text-gray-800 font-semibold text-red-600">{patientRecord.patient_profile.blood_type}</p>
+                        </div>
+                      )}
+                    </div>
+                    {patientRecord.patient_profile?.address && (
+                      <div className="mt-4">
+                        <span className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                          <MapPin className="w-4 h-4" />
+                          Address:
+                        </span>
+                        <p className="text-gray-800 text-sm">
+                          {patientRecord.patient_profile.address}
+                          {patientRecord.patient_profile.city && `, ${patientRecord.patient_profile.city}`}
+                          {patientRecord.patient_profile.state && `, ${patientRecord.patient_profile.state}`}
+                        </p>
                       </div>
                     )}
                   </div>
-                  {patientRecord.patient_profile?.address && (
-                    <div className="mt-4">
-                      <span className="text-sm font-medium text-gray-600 flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        Address:
-                      </span>
-                      <p className="text-gray-800">
-                        {patientRecord.patient_profile.address}
-                        {patientRecord.patient_profile.city && `, ${patientRecord.patient_profile.city}`}
-                        {patientRecord.patient_profile.state && `, ${patientRecord.patient_profile.state}`}
-                      </p>
+
+                  {/* Last Consultation & Clinical Info */}
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6 border border-purple-200">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                      <Stethoscope className="w-5 h-5 text-purple-600" />
+                      Clinical Information
+                    </h3>
+                    
+                    {/* Last Consultation */}
+                    <div className="mb-4 p-4 bg-white rounded-lg border border-purple-100">
+                      <h4 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-purple-500" />
+                        Last Consultation
+                      </h4>
+                      {patientRecord.last_consultation ? (
+                        <div className="space-y-1 text-sm">
+                          <p><span className="font-medium text-gray-600">Date:</span> {new Date(patientRecord.last_consultation.date).toLocaleDateString()}</p>
+                          <p><span className="font-medium text-gray-600">Time:</span> {patientRecord.last_consultation.time}</p>
+                          <p><span className="font-medium text-gray-600">Doctor:</span> Dr. {patientRecord.last_consultation.doctor_name}</p>
+                          {patientRecord.last_consultation.reason && (
+                            <p><span className="font-medium text-gray-600">Reason:</span> {patientRecord.last_consultation.reason}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No previous consultations</p>
+                      )}
                     </div>
-                  )}
+
+                    {/* Medical Conditions & Allergies */}
+                    <div className="grid grid-cols-1 gap-3">
+                      {patientRecord.patient_profile?.allergies && (
+                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                          <span className="text-sm font-semibold text-red-700 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            Allergies:
+                          </span>
+                          <p className="text-red-800 text-sm mt-1">{patientRecord.patient_profile.allergies}</p>
+                        </div>
+                      )}
+                      {patientRecord.patient_profile?.medical_conditions && (
+                        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                          <span className="text-sm font-semibold text-yellow-700 flex items-center gap-1">
+                            <Heart className="w-4 h-4" />
+                            Medical Conditions:
+                          </span>
+                          <p className="text-yellow-800 text-sm mt-1">{patientRecord.patient_profile.medical_conditions}</p>
+                        </div>
+                      )}
+                      {patientRecord.patient_profile?.emergency_contact && (
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <span className="text-sm font-semibold text-blue-700 flex items-center gap-1">
+                            <Phone className="w-4 h-4" />
+                            Emergency Contact:
+                          </span>
+                          <p className="text-blue-800 text-sm mt-1">{patientRecord.patient_profile.emergency_contact}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lab Orders */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                      <TestTube className="w-5 h-5 text-green-600" />
+                      Lab Orders ({patientRecord.lab_orders?.length || 0})
+                    </h3>
+                  </div>
+                  <div className="p-6">
+                    {patientRecord.lab_orders && patientRecord.lab_orders.length > 0 ? (
+                      <div className="space-y-4">
+                        {patientRecord.lab_orders.map((labOrder) => (
+                          <div key={labOrder.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h4 className="font-semibold text-gray-800">{labOrder.test_type}</h4>
+                                {labOrder.test_description && (
+                                  <p className="text-sm text-gray-600">{labOrder.test_description}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(labOrder.status)}`}>
+                                  {labOrder.status}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                              <div>
+                                <span className="font-medium text-gray-600">Order Date:</span>
+                                <p className="text-gray-800">{new Date(labOrder.order_date).toLocaleDateString()}</p>
+                              </div>
+                              {labOrder.due_date && (
+                                <div>
+                                  <span className="font-medium text-gray-600">Due Date:</span>
+                                  <p className="text-gray-800">{new Date(labOrder.due_date).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-medium text-gray-600">Ordered by:</span>
+                                <p className="text-gray-800">Dr. {labOrder.doctor_name}</p>
+                              </div>
+                            </div>
+                            {labOrder.result_value && (
+                              <div className="mt-3 p-2 bg-green-50 rounded border border-green-200">
+                                <span className="font-medium text-green-700 text-sm">Result:</span>
+                                <p className="text-green-800">{labOrder.result_value} {labOrder.result_unit}</p>
+                              </div>
+                            )}
+                            {labOrder.instructions && (
+                              <div className="mt-3">
+                                <span className="font-medium text-gray-600 text-sm">Instructions:</span>
+                                <p className="text-gray-800 text-sm">{labOrder.instructions}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <TestTube className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-500">No lab orders found</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Prescriptions */}
@@ -273,12 +443,12 @@ const PatientLookup: React.FC<PatientLookupProps> = ({ open, onClose }) => {
                   <div className="p-6">
                     {patientRecord.prescriptions && patientRecord.prescriptions.length > 0 ? (
                       <div className="space-y-4">
-                        {patientRecord.prescriptions.map((prescription, index) => (
+                        {patientRecord.prescriptions.map((prescription) => (
                           <div key={prescription.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                             <div className="flex items-start justify-between mb-3">
                               <div>
                                 <h4 className="font-semibold text-gray-800">{prescription.medication_name}</h4>
-                                <p className="text-sm text-gray-600">Prescribed by: {prescription.doctor_name || 'Doctor'}</p>
+                                <p className="text-sm text-gray-600">Prescribed by: Dr. {prescription.doctor_name || 'Unknown'}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(prescription.status)}`}>

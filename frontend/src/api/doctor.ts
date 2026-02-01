@@ -92,9 +92,9 @@ export const doctorApi = {
       return response.data;
     },
     
-    searchByPhone: async (phoneNumber: string): Promise<{ data: PatientRecord | null }> => {
+    searchByPhone: async (phoneNumber: string, name?: string): Promise<{ data: PatientRecord | null }> => {
       const response = await http.get<{ data: PatientRecord | null }>(`${API_ENDPOINTS.PATIENTS}/search`, {
-        params: { phone: phoneNumber }
+        params: { phone: phoneNumber, name }
       });
       return response.data;
     },

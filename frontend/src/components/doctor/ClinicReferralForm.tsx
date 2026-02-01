@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Hospital, User, Calendar, AlertTriangle, FileText, Clock } from 'lucide-react';
+import { X, Hospital, User, AlertTriangle, FileText } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import http from '../../api/http';
 import type { Clinic, CreateClinicReferralPayload } from '../../types/doctor';
@@ -136,9 +136,9 @@ const ClinicReferralForm: React.FC<ClinicReferralFormProps> = ({
               type="number"
               value={formData.patient_id || ''}
               onChange={(e) => setFormData({ ...formData, patient_id: parseInt(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-gray-100"
               required
-              disabled={!!initialPatientId}
+              readOnly={!!initialPatientId}
             />
           </div>
 
@@ -204,54 +204,9 @@ const ClinicReferralForm: React.FC<ClinicReferralFormProps> = ({
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              rows={3}
-              placeholder="Describe the reason for referring this patient to the selected clinic..."
+              rows={2}
+              placeholder="Briefly describe the reason for referring this patient..."
               required
-            />
-          </div>
-
-          {/* Clinical Summary */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="w-4 h-4 inline mr-1" />
-              Clinical Summary
-            </label>
-            <textarea
-              value={formData.clinical_summary}
-              onChange={(e) => setFormData({ ...formData, clinical_summary: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              rows={4}
-              placeholder="Provide a detailed clinical summary including symptoms, examination findings, and relevant history..."
-            />
-          </div>
-
-          {/* Preferred Appointment Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Preferred Appointment Date
-            </label>
-            <input
-              type="datetime-local"
-              value={formData.preferred_appointment_date}
-              onChange={(e) => setFormData({ ...formData, preferred_appointment_date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              min={new Date().toISOString().slice(0, 16)}
-            />
-          </div>
-
-          {/* Additional Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="w-4 h-4 inline mr-1" />
-              Additional Notes
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              rows={3}
-              placeholder="Any additional notes or special instructions for the receiving clinic..."
             />
           </div>
 
@@ -278,7 +233,7 @@ const ClinicReferralForm: React.FC<ClinicReferralFormProps> = ({
               ) : (
                 <>
                   <Hospital className="w-4 h-4" />
-                  <span>Submit Referral</span>
+                  <span>Refer to Clinic</span>
                 </>
               )}
             </button>

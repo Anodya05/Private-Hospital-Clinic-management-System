@@ -16,10 +16,12 @@ class PatientController extends Controller
     public function searchByPhone(Request $request): JsonResponse
     {
         $request->validate([
-            'phone' => 'required|string|max:20'
+            'phone' => 'required|string|max:20',
+            'name' => 'nullable|string|max:100'
         ]);
 
         $phone = $request->input('phone');
+        $name = $request->input('name');
 
         // Find patient by phone number in patient profiles
         $patientProfile = PatientProfile::where('phone', $phone)
@@ -45,7 +47,12 @@ class PatientController extends Controller
             'clinicReferrals' => function ($query) {
                 $query->with('clinic:id,name,location')
                     ->orderBy('created_at', 'desc');
-            }
+            },
+            'appointments' => function ($query) {
+                $query->with('doctor:id,first_name,last_name')
+                    ->orderBy('appointment_date', 'desc')
+                    ->orderBy('appointment_time', 'desc');
+            },
         ])->find($patientProfile->user_id);
 
         if (!$user) {
@@ -54,6 +61,30 @@ class PatientController extends Controller
                 'message' => 'Patient record not found'
             ], 404);
         }
+
+        // Optional name validation
+        if ($name) {
+            $fullName = strtolower($user->first_name . ' ' . $user->last_name);
+            if (strpos($fullName, strtolower($name)) === false) {
+                return response()->json([
+                    'data' => null,
+                    'message' => 'Name does not match the patient record'
+                ], 404);
+            }
+        }
+
+        // Get lab orders for this patient
+        $labOrders = \App\Models\LabOrder::where('patient_id', $user->id)
+            ->with('doctor:id,first_name,last_name')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Get the last completed appointment (last consulting date)
+        $lastConsultation = $user->appointments()
+            ->where('status', 'completed')
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('appointment_time', 'desc')
+            ->first();
 
         // Transform the data for the frontend
         $patientRecord = [
@@ -75,7 +106,33 @@ class PatientController extends Controller
                 'allergies' => $user->patientProfile->allergies,
                 'medical_conditions' => $user->patientProfile->medical_conditions,
             ] : null,
+            'last_consultation' => $lastConsultation ? [
+                'date' => $lastConsultation->appointment_date,
+                'time' => $lastConsultation->appointment_time,
+                'doctor_name' => $lastConsultation->doctor 
+                    ? $lastConsultation->doctor->first_name . ' ' . $lastConsultation->doctor->last_name 
+                    : 'Unknown Doctor',
+                'reason' => $lastConsultation->reason,
+            ] : null,
             'prescriptions' => $this->transformPrescriptions($user->prescriptions),
+            'lab_orders' => $labOrders->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'test_type' => $order->test_type,
+                    'test_description' => $order->test_description,
+                    'status' => $order->status ?? 'pending',
+                    'order_date' => $order->order_date,
+                    'due_date' => $order->due_date,
+                    'result_date' => $order->result_date,
+                    'result_value' => $order->result_value,
+                    'result_unit' => $order->result_unit,
+                    'notes' => $order->notes,
+                    'instructions' => $order->instructions,
+                    'doctor_name' => $order->doctor 
+                        ? $order->doctor->first_name . ' ' . $order->doctor->last_name 
+                        : 'Unknown Doctor',
+                ];
+            })->toArray(),
             'clinic_referrals' => $user->clinicReferrals->map(function ($referral) {
                 return [
                     'id' => $referral->id,
