@@ -15,12 +15,6 @@ use App\Models\PatientProfile;
 
 use App\Models\Prescription;
 use App\Models\ClinicReferral;
-=======
-
-use App\Models\Prescription;
-use App\Models\ClinicReferral;
-=======
->>>>>>> 8b1ae59ac05efef9cafce80ef2eb0af94296fb91
 use App\Models\Clinic;
 
 class User extends Authenticatable

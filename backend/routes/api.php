@@ -290,9 +290,4 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('status', [AIController::class, 'getStatus']);
         Route::get('features', [AIController::class, 'getFeatures']);
     });
-<<<<<<< HEAD
-=======
-=======
-=======
->>>>>>> 8b1ae59ac05efef9cafce80ef2eb0af94296fb91
 });
