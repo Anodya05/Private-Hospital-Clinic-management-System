@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
 use App\Http\Controllers\Api\DoctorQueueController;
 use App\Http\Controllers\Api\DoctorClinicReferralController;
+use App\Http\Controllers\Api\DoctorDashboardController;
 use App\Http\Controllers\Api\ClinicController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\AIController;
@@ -209,6 +210,9 @@ Route::middleware(['auth:sanctum', 'role:receptionist'])->prefix('receptionist')
 // DOCTOR ROUTES
 // ==========================================
 Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(function () {
+    // Dashboard / Daily Summary
+    Route::get('dashboard/daily-summary', [DoctorDashboardController::class, 'dailySummary']);
+
     // Appointments
     Route::get('appointments', [DoctorAppointmentController::class, 'index']);
     Route::get('appointments/{id}', [DoctorAppointmentController::class, 'show']);
@@ -286,6 +290,4 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('status', [AIController::class, 'getStatus']);
         Route::get('features', [AIController::class, 'getFeatures']);
     });
-=======
-=======
 });
