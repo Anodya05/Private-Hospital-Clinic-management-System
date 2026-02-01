@@ -46,3 +46,5 @@ http.interceptors.response.use(
     return Promise.reject(new Error(extractErrorMessage(error)));
   }
 );
+
+export default http;

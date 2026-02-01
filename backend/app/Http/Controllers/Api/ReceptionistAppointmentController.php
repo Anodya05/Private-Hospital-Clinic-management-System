@@ -144,9 +144,17 @@ class ReceptionistAppointmentController extends Controller
             $queueEntry = null;
 
             if (! $alreadyInQueue) {
+                $doctorId = $appointment->doctor_id;
+
                 $lastQueueNumber = QueueEntry::query()
                     ->whereDate('queue_date', $queueDate)
-                    ->whereNull('doctor_id')
+                    ->where(function ($q) use ($doctorId) {
+                        if ($doctorId) {
+                            $q->where('doctor_id', $doctorId);
+                        } else {
+                            $q->whereNull('doctor_id');
+                        }
+                    })
                     ->orderByDesc('queue_number')
                     ->lockForUpdate()
                     ->value('queue_number');
@@ -156,10 +164,11 @@ class ReceptionistAppointmentController extends Controller
                 $queueEntry = QueueEntry::create([
                     'appointment_id' => $appointment->id,
                     'patient_id' => $patientId,
-                    'doctor_id' => null,
+                    'doctor_id' => $doctorId,
                     'queue_date' => $queueDate,
                     'queue_number' => $nextQueueNumber,
                     'status' => 'waiting',
+                    'priority' => 'normal',
                     'checked_in_at' => now(),
                     'created_by' => $request->user()?->id,
                 ]);

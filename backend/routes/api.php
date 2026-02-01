@@ -36,8 +36,13 @@ use App\Http\Controllers\Api\DoctorPrescriptionController;
 use App\Http\Controllers\Api\DoctorLabController;
 use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
+use App\Http\Controllers\Api\DoctorQueueController;
+use App\Http\Controllers\Api\DoctorClinicReferralController;
+use App\Http\Controllers\Api\DoctorDashboardController;
 use App\Http\Controllers\Api\ClinicController;
 use App\Http\Controllers\Api\PharmacistController;
+use App\Http\Controllers\Api\PatientController;
+use App\Http\Controllers\Api\AIController;
 
 /*
 |--------------------------------------------------------------------------
@@ -102,6 +107,17 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->gr
     Route::post('inventory/{id}/dispense', [PharmacistController::class, 'dispense']);
 
     // Standard Inventory Management
+    // Prescriptions
+    Route::get('prescriptions', [PrescriptionController::class, 'index']);
+    Route::get('prescriptions/{id}', [PrescriptionController::class, 'show']);
+    Route::post('prescriptions/{id}/interaction-check', [PrescriptionController::class, 'checkInteractions']);
+    Route::post('prescriptions/{id}/dispense', [PrescriptionController::class, 'dispense']);
+    
+    // Inventory - Specific routes MUST come before {id} route
+    Route::get('inventory', [InventoryController::class, 'index']);
+    Route::get('inventory/low-stock', [InventoryController::class, 'lowStock']);
+    Route::get('inventory/expiring-soon', [InventoryController::class, 'expiringSoon']);
+    Route::get('inventory/stats', [InventoryController::class, 'stats']);
     Route::post('inventory', [InventoryController::class, 'store']);
     Route::get('inventory/{id}', [InventoryController::class, 'show']);
     Route::put('inventory/{id}', [InventoryController::class, 'update']);
@@ -220,6 +236,9 @@ Route::middleware(['auth:sanctum', 'role:receptionist'])->prefix('receptionist')
 // DOCTOR ROUTES
 // ==========================================
 Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(function () {
+    // Dashboard / Daily Summary
+    Route::get('dashboard/daily-summary', [DoctorDashboardController::class, 'dailySummary']);
+
     // Appointments
     Route::get('appointments', [DoctorAppointmentController::class, 'index']);
     Route::get('appointments/{id}', [DoctorAppointmentController::class, 'show']);
@@ -248,6 +267,8 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::post('prescriptions', [DoctorPrescriptionController::class, 'store']);
     Route::get('prescriptions', [DoctorPrescriptionController::class, 'index']);
     Route::get('prescriptions/{id}', [DoctorPrescriptionController::class, 'show']);
+    Route::put('prescriptions/{id}', [DoctorPrescriptionController::class, 'update']);
+    Route::delete('prescriptions/{id}', [DoctorPrescriptionController::class, 'destroy']);
 
     // Lab Orders & Results
     Route::post('labs/orders', [DoctorLabController::class, 'createOrder']);
@@ -259,8 +280,43 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::get('referrals', [DoctorReferralController::class, 'index']);
 
     // Patients
+    // Clinic Referrals
+    Route::post('clinic-referrals', [DoctorClinicReferralController::class, 'store']);
+    Route::get('clinic-referrals', [DoctorClinicReferralController::class, 'index']);
+
+    // Patients (Doctor can register patients)
     Route::post('patients', [DoctorPatientController::class, 'store']);
 
     // Inventory
     Route::get('inventory', [InventoryController::class, 'index']);
+
+
+    // Queue
+    Route::get('queue', [DoctorQueueController::class, 'index']);
+    Route::get('queue/next', [DoctorQueueController::class, 'next']);
+    Route::post('queue/call-next', [DoctorQueueController::class, 'callNext']);
+    Route::put('queue/{id}/status', [DoctorQueueController::class, 'updateStatus']);
+});
+
+// Patient API (for doctors and staff to search patients)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('patients')->group(function () {
+        Route::get('search', [PatientController::class, 'searchByPhone']);
+        Route::get('{id}', [PatientController::class, 'show']);
+    });
+});
+
+// AI-Powered Routes (GPT-5.2-Codex)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('ai')->group(function () {
+        Route::post('chat', [AIController::class, 'chat']);
+        Route::post('medical/analysis', [AIController::class, 'medicalAnalysis']);
+        Route::post('medical/drug-interactions', [AIController::class, 'drugInteractions']);
+        Route::post('medical/diagnostics', [AIController::class, 'diagnostics']);
+        Route::post('medical/prescription-review', [AIController::class, 'prescriptionReview']);
+        Route::post('patient/insights', [AIController::class, 'patientInsights']);
+        Route::post('documents/generate', [AIController::class, 'generateDocument']);
+        Route::get('status', [AIController::class, 'getStatus']);
+        Route::get('features', [AIController::class, 'getFeatures']);
+    });
 });
