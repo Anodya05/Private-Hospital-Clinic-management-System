@@ -217,6 +217,21 @@ const DoctorDashboardView: React.FC = () => {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
   const [callingNext, setCallingNext] = useState(false);
+  const [consultationTypeFilter, setConsultationTypeFilter] = useState<'all' | 'online' | 'physical'>('all');
+
+  // Filter queue entries based on consultation type
+  const filteredQueueEntries = useMemo(() => {
+    if (consultationTypeFilter === 'all') return queueEntries;
+    return queueEntries.filter(entry => {
+      const appointmentType = entry.appointment?.type?.toLowerCase() || '';
+      if (consultationTypeFilter === 'online') {
+        return appointmentType === 'telemedicine' || appointmentType === 'online' || appointmentType === 'video';
+      } else {
+        // Physical consultation - includes in_person, physical, or any other type that's not telemedicine
+        return appointmentType !== 'telemedicine' && appointmentType !== 'online' && appointmentType !== 'video';
+      }
+    });
+  }, [queueEntries, consultationTypeFilter]);
 
   // Current patient in consultation (derived from queue)
   const currentPatientInConsultation = useMemo(() => 
@@ -800,13 +815,6 @@ const DoctorDashboardView: React.FC = () => {
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'queue' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
         >
           <Users className="w-5 h-5" />
-          <span className="text-sm font-medium">Patient Queue</span>
-        </button>
-        <button
-          onClick={() => setActive('consultation')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'consultation' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
-        >
-          <Video className="w-5 h-5" />
           <span className="text-sm font-medium">Consultation</span>
         </button>
         <button
@@ -853,8 +861,7 @@ const DoctorDashboardView: React.FC = () => {
             [
               ['overview', 'Overview', LayoutDashboard],
               ['daily_summary', 'Daily Summary', ClipboardList],
-              ['queue', 'Patient Queue', Users],
-              ['consultation', 'Consultation', Video],
+              ['queue', 'Consultation', Users],
               ['prescriptions', 'Prescriptions', Pill],
               ['labs', 'Lab Orders', FlaskConical],
               ['referrals', 'Referrals', Share2],
@@ -1001,7 +1008,7 @@ const DoctorDashboardView: React.FC = () => {
                       <p className="text-gray-600">Start and manage consultations</p>
                     </div>
                     <button
-                      onClick={() => setActive('consultation')}
+                      onClick={() => setActive('queue')}
                       className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
                     >
                       Start
@@ -1838,13 +1845,13 @@ const DoctorDashboardView: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Patient Queue</h2>
-                    <p className="text-gray-600 text-sm">View and manage patients waiting to be seen</p>
+                    <h2 className="text-2xl font-bold text-gray-900">Consultation</h2>
+                    <p className="text-gray-600 text-sm">View and manage patients for consultation</p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={callNextPatient}
-                      disabled={callingNext || queueEntries.filter(e => e.status === 'waiting').length === 0}
+                      disabled={callingNext || filteredQueueEntries.filter(e => e.status === 'waiting').length === 0}
                       className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
                     >
                       {callingNext ? 'Calling...' : 'Call Next Patient'}
@@ -1859,10 +1866,66 @@ const DoctorDashboardView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Consultation Type Selection */}
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Consultation Type</h3>
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      onClick={() => setConsultationTypeFilter('online')}
+                      className={`flex-1 min-w-[200px] flex items-center gap-3 p-4 rounded-lg border-2 transition ${
+                        consultationTypeFilter === 'online' 
+                          ? 'border-teal-600 bg-teal-100 ring-2 ring-teal-400' 
+                          : 'border-teal-500 bg-teal-50 hover:bg-teal-100'
+                      }`}
+                    >
+                      <Video className="w-8 h-8 text-teal-600" />
+                      <div className="text-left">
+                        <div className="font-semibold text-teal-700">Online Consultation</div>
+                        <div className="text-sm text-teal-600">Telemedicine / Video Call</div>
+                        <div className="text-xs text-teal-500 mt-1">
+                          {queueEntries.filter(e => {
+                            const t = e.appointment?.type?.toLowerCase() || '';
+                            return t === 'telemedicine' || t === 'online' || t === 'video';
+                          }).length} patients
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setConsultationTypeFilter('physical')}
+                      className={`flex-1 min-w-[200px] flex items-center gap-3 p-4 rounded-lg border-2 transition ${
+                        consultationTypeFilter === 'physical' 
+                          ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-400' 
+                          : 'border-blue-500 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                    >
+                      <Users className="w-8 h-8 text-blue-600" />
+                      <div className="text-left">
+                        <div className="font-semibold text-blue-700">Physical Consultation</div>
+                        <div className="text-sm text-blue-600">In-Person Visit</div>
+                        <div className="text-xs text-blue-500 mt-1">
+                          {queueEntries.filter(e => {
+                            const t = e.appointment?.type?.toLowerCase() || '';
+                            return t !== 'telemedicine' && t !== 'online' && t !== 'video';
+                          }).length} patients
+                        </div>
+                      </div>
+                    </button>
+                    {consultationTypeFilter !== 'all' && (
+                      <button
+                        onClick={() => setConsultationTypeFilter('all')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-gray-300 bg-gray-50 hover:bg-gray-100 transition text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Show All</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Current Patient Card */}
                 {(() => {
-                  const currentPatient = queueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress');
-                  const nextPatient = queueEntries.find(e => e.status === 'waiting');
+                  const currentPatient = filteredQueueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress');
+                  const nextPatient = filteredQueueEntries.find(e => e.status === 'waiting');
                   
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1958,15 +2021,15 @@ const DoctorDashboardView: React.FC = () => {
                 {/* Queue Stats */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white p-4 rounded-lg shadow text-center">
-                    <p className="text-3xl font-bold text-yellow-600">{queueEntries.filter(e => e.status === 'waiting').length}</p>
+                    <p className="text-3xl font-bold text-yellow-600">{filteredQueueEntries.filter(e => e.status === 'waiting').length}</p>
                     <p className="text-sm text-gray-600">Waiting</p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow text-center">
-                    <p className="text-3xl font-bold text-teal-600">{queueEntries.filter(e => e.status === 'in_consultation' || e.status === 'in_progress').length}</p>
+                    <p className="text-3xl font-bold text-teal-600">{filteredQueueEntries.filter(e => e.status === 'in_consultation' || e.status === 'in_progress').length}</p>
                     <p className="text-sm text-gray-600">In Consultation</p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow text-center">
-                    <p className="text-3xl font-bold text-green-600">{queueEntries.filter(e => e.status === 'completed').length}</p>
+                    <p className="text-3xl font-bold text-green-600">{filteredQueueEntries.filter(e => e.status === 'completed').length}</p>
                     <p className="text-sm text-gray-600">Completed Today</p>
                   </div>
                 </div>
@@ -1976,8 +2039,11 @@ const DoctorDashboardView: React.FC = () => {
                 ) : (
                   <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                     <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-700">Waiting Queue</h3>
-                      <span className="text-sm text-gray-500">{queueEntries.filter(e => e.status === 'waiting' || e.status === 'in_consultation' || e.status === 'in_progress').length} patients</span>
+                      <h3 className="font-semibold text-gray-700">
+                        {consultationTypeFilter === 'online' ? 'Online Consultation Queue' : 
+                         consultationTypeFilter === 'physical' ? 'Physical Consultation Queue' : 'All Patients Queue'}
+                      </h3>
+                      <span className="text-sm text-gray-500">{filteredQueueEntries.filter(e => e.status === 'waiting' || e.status === 'in_consultation' || e.status === 'in_progress').length} patients</span>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
@@ -1992,14 +2058,16 @@ const DoctorDashboardView: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {queueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').length === 0 ? (
+                          {filteredQueueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').length === 0 ? (
                             <tr>
                               <td colSpan={6} className="px-6 py-8 text-center text-gray-600">
-                                No patients in queue.
+                                {consultationTypeFilter === 'all' 
+                                  ? 'No patients in queue.' 
+                                  : `No patients for ${consultationTypeFilter === 'online' ? 'online' : 'physical'} consultation.`}
                               </td>
                             </tr>
                           ) : (
-                            queueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').map((entry, index) => (
+                            filteredQueueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').map((entry, index) => (
                               <tr key={entry.id} className={`hover:bg-gray-50 ${entry.status === 'in_consultation' || entry.status === 'in_progress' ? 'bg-teal-50' : index === 0 && entry.status === 'waiting' ? 'bg-yellow-50' : ''}`}>
                                 <td className="px-6 py-4 text-sm font-medium text-gray-900">
                                   {entry.queue_number ?? '-'}
