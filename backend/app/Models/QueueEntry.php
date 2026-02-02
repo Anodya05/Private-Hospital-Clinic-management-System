@@ -17,15 +17,23 @@ class QueueEntry extends Model
         'queue_date',
         'queue_number',
         'status',
+        'priority',
+        'notes',
         'checked_in_at',
+        'consultation_started_at',
+        'called_at',
         'checked_out_at',
+        'completed_at',
         'created_by',
     ];
 
     protected $casts = [
         'queue_date' => 'date',
         'checked_in_at' => 'datetime',
+        'consultation_started_at' => 'datetime',
+        'called_at' => 'datetime',
         'checked_out_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     public function appointment(): BelongsTo

@@ -1,24 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   Calendar,
   ClipboardList,
-  FileText,
   FlaskConical,
   LayoutDashboard,
   LogOut,
   Menu,
   Pill,
   Share2,
+  Users,
   Video,
   X,
+  Brain,
 } from 'lucide-react';
+import { API_ENDPOINTS } from '../../config/api';
 import { doctorApi } from '../../api/doctor';
 import { AppointmentTable } from '../../components/doctor/AppointmentTable';
 import { DiagnosisForm } from '../../components/doctor/DiagnosisForm';
-import { EhrViewer } from '../../components/doctor/EhrViewer';
 import { PrescriptionForm } from '../../components/doctor/PrescriptionForm';
+import AIInsightsPanel from '../../components/common/AIInsightsPanel';
+import { isAIEnabled } from '../../config/ai';
+import ClinicReferralForm from '../../components/doctor/ClinicReferralForm';
+import PatientLookup from '../../components/doctor/PatientLookup';
 import type {
   CreateDiagnosisPayload,
   CreateLabOrderPayload,
@@ -30,14 +36,15 @@ import type {
   DoctorPrescription,
   LabOrdersAndResultsResponse,
   LabResult,
-  PatientEhrData,
   Referral,
   UpdateDiagnosisPayload,
-  CreatePatientPayload,
+  CreateClinicReferralPayload,
+  DailySummaryResponse,
+  ConsultedPatient,
 } from '../../types/doctor';
 import type { AuthUser } from '../../types/auth';
 
-type SectionKey = 'overview' | 'appointments' | 'consultation' | 'ehr' | 'prescriptions' | 'labs' | 'referrals';
+type SectionKey = 'overview' | 'queue' | 'consultation' | 'prescriptions' | 'labs' | 'referrals' | 'ai_insights' | 'daily_summary';
 
 const safeParseJson = (value: string | null) => {
   if (!value) return null;
@@ -57,6 +64,7 @@ const DoctorDashboardView: React.FC = () => {
   const [active, setActive] = useState<SectionKey>('overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPatientForAI, setSelectedPatientForAI] = useState<string | null>(null);
 
   const initialAppointmentFilters = useMemo(
     () => ({
@@ -69,7 +77,7 @@ const DoctorDashboardView: React.FC = () => {
 
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
-  const [appointmentFilters, setAppointmentFilters] = useState(initialAppointmentFilters);
+  const [appointmentFilters] = useState(initialAppointmentFilters);
 
   const [selectedAppointment, setSelectedAppointment] = useState<DoctorAppointment | null>(null);
   const [consultNotes, setConsultNotes] = useState('');
@@ -85,11 +93,6 @@ const DoctorDashboardView: React.FC = () => {
   const [diagnosisSaving, setDiagnosisSaving] = useState(false);
   const [editingDiagnosis, setEditingDiagnosis] = useState<Diagnosis | null>(null);
 
-  const [ehrPatientId, setEhrPatientId] = useState('');
-  const [ehrLoading, setEhrLoading] = useState(false);
-  const [ehrData, setEhrData] = useState<PatientEhrData | null>(null);
-  const [ehrTab, setEhrTab] = useState<'diagnosis' | 'lab_report'>('diagnosis');
-
   const [prescriptionsLoaded, setPrescriptionsLoaded] = useState(false);
   const [prescriptionsLoading, setPrescriptionsLoading] = useState(false);
   const [prescriptions, setPrescriptions] = useState<DoctorPrescription[]>([]);
@@ -98,8 +101,11 @@ const DoctorDashboardView: React.FC = () => {
 
   const [prescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
   const [prescriptionSaving, setPrescriptionSaving] = useState(false);
+  const [editingPrescription, setEditingPrescription] = useState<DoctorPrescription | null>(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventory, setInventory] = useState<DoctorInventoryItem[]>([]);
+  const [clinics, setClinics] = useState<{ id: number; name: string }[]>([]);
+  const [clinicsLoading, setClinicsLoading] = useState(false);
 
   const [labsPatientId, setLabsPatientId] = useState('');
   const [labsLoading, setLabsLoading] = useState(false);
@@ -117,6 +123,45 @@ const DoctorDashboardView: React.FC = () => {
     instructions: '',
   });
 
+  // Common test types for dropdown
+  const testTypes = [
+    'Complete Blood Count (CBC)',
+    'Basic Metabolic Panel (BMP)',
+    'Comprehensive Metabolic Panel (CMP)',
+    'Lipid Panel',
+    'Liver Function Tests (LFT)',
+    'Kidney Function Tests (KFT)',
+    'Thyroid Function Tests (TFT)',
+    'Hemoglobin A1C',
+    'Urinalysis',
+    'ESR (Erythrocyte Sedimentation Rate)',
+    'CRP (C-Reactive Protein)',
+    'PT/PTT/INR (Coagulation Studies)',
+    'Blood Glucose',
+    'Electrolyte Panel',
+    'Cardiac Enzymes',
+    'PSA (Prostate Specific Antigen)',
+    'Vitamin D',
+    'Vitamin B12',
+    'Folic Acid',
+    'Iron Studies',
+    'Hepatitis Panel',
+    'HIV Test',
+    'Pregnancy Test (hCG)',
+    'Tumor Markers',
+    'Allergy Panel',
+    'X-Ray',
+    'CT Scan',
+    'MRI',
+    'Ultrasound',
+    'ECG/EKG',
+    'Echocardiogram',
+    'Mammography',
+    'Colonoscopy',
+    'Endoscopy',
+    'Other'
+  ];
+
   const initialReferralFilters = useMemo(() => ({ status: '', patient_id: '' }), []);
 
   const [referralsLoaded, setReferralsLoaded] = useState(false);
@@ -124,6 +169,10 @@ const DoctorDashboardView: React.FC = () => {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [referralModalOpen, setReferralModalOpen] = useState(false);
   const [referralSaving, setReferralSaving] = useState(false);
+  const [clinicReferralModalOpen, setClinicReferralModalOpen] = useState(false);
+  const [clinicReferralSaving, setClinicReferralSaving] = useState(false);
+  const [clinicReferralPatientId, setClinicReferralPatientId] = useState<number | null>(null);
+  const [patientLookupModalOpen, setPatientLookupModalOpen] = useState(false);
   const [referralFilters, setReferralFilters] = useState(initialReferralFilters);
   const [referralForm, setReferralForm] = useState({
     patient_id: '',
@@ -136,26 +185,75 @@ const DoctorDashboardView: React.FC = () => {
     appointment_date: '',
   });
 
-  // Patient registration (doctor)
-  const [patientModalOpen, setPatientModalOpen] = useState(false);
-  const [patientSaving, setPatientSaving] = useState(false);
-  const [patientForm, setPatientForm] = useState<CreatePatientPayload>({
-    name: '',
-    email: '',
-    password: '',
-    date_of_birth: '',
-    phone: '',
-    gender: '',
-    blood_type: '',
-    address: '',
-    city: '',
-    state: '',
-    postal_code: '',
-  });
-  const [patientError, setPatientError] = useState<string | null>(null);
-  const [patientSuccessMsg, setPatientSuccessMsg] = useState<string | null>(null);
-  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
+  // Queue state
+  interface QueuePatient {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+  }
+  interface QueueEntry {
+    id: number | string;
+    patient_id: number;
+    patient?: QueuePatient | null;
+    appointment_id: number | null;
+    appointment?: {
+      id: number;
+      appointment_date: string;
+      appointment_time: string;
+      type: string;
+      status: string;
+    } | null;
+    queue_number: number | null;
+    status: string;
+    priority?: string;
+    notes?: string | null;
+    checked_in_at?: string;
+    called_at?: string | null;
+    completed_at?: string | null;
+    checked_in?: boolean;
+  }
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
+  const [callingNext, setCallingNext] = useState(false);
+  const [consultationTypeFilter, setConsultationTypeFilter] = useState<'all' | 'online' | 'physical'>('all');
 
+  // Filter queue entries based on consultation type
+  const filteredQueueEntries = useMemo(() => {
+    if (consultationTypeFilter === 'all') return queueEntries;
+    return queueEntries.filter(entry => {
+      const appointmentType = entry.appointment?.type?.toLowerCase() || '';
+      if (consultationTypeFilter === 'online') {
+        return appointmentType === 'telemedicine' || appointmentType === 'online' || appointmentType === 'video';
+      } else {
+        // Physical consultation - includes in_person, physical, or any other type that's not telemedicine
+        return appointmentType !== 'telemedicine' && appointmentType !== 'online' && appointmentType !== 'video';
+      }
+    });
+  }, [queueEntries, consultationTypeFilter]);
+
+  // Current patient in consultation (derived from queue)
+  const currentPatientInConsultation = useMemo(() => 
+    queueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress') || null,
+    [queueEntries]
+  );
+
+  const getPatientName = (entry: QueueEntry): string => {
+    if (entry.patient) {
+      return `${entry.patient.first_name || ''} ${entry.patient.last_name || ''}`.trim() || 'Unknown';
+    }
+    return 'Unknown Patient';
+  };
+
+  // Daily Summary state
+  const [dailySummaryDate, setDailySummaryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
+  const [dailySummaryLoaded, setDailySummaryLoaded] = useState(false);
+  const [dailySummary, setDailySummary] = useState<DailySummaryResponse | null>(null);
+  const [expandedPatientId, setExpandedPatientId] = useState<number | null>(null);
+
+  // Patient registration (doctor)
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
@@ -234,19 +332,6 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
-  const loadEhr = async (patientId: number) => {
-    setError(null);
-    setEhrLoading(true);
-    try {
-      const data = await doctorApi.ehr.getPatientEhr(patientId);
-      setEhrData(data);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load EHR');
-    } finally {
-      setEhrLoading(false);
-    }
-  };
-
   const loadPatientDiagnoses = async (patientId: number) => {
     if (!patientId) return;
     setError(null);
@@ -264,38 +349,6 @@ const DoctorDashboardView: React.FC = () => {
   const openCreateDiagnosis = () => {
     setEditingDiagnosis(null);
     setDiagnosisModalOpen(true);
-  };
-
-  const openPatientRegistration = () => {
-    setPatientError(null);
-    setPatientSuccessMsg(null);
-    setGeneratedPassword(null);
-    setPatientForm((p) => ({ ...p, name: '', email: '', password: '', date_of_birth: '', phone: '', gender: '', blood_type: '', address: '', city: '', state: '', postal_code: '' }));
-    setPatientModalOpen(true);
-  };
-
-  const createPatient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPatientError(null);
-    setPatientSuccessMsg(null);
-    if (!patientForm.name.trim() || !patientForm.email.trim()) {
-      setPatientError('Name and email are required');
-      return;
-    }
-    setPatientSaving(true);
-    try {
-      const resp = await doctorApi.patients.create(patientForm);
-      setGeneratedPassword(resp.generated_password || null);
-      setPatientSuccessMsg('Patient registered successfully');
-      // Optionally clear form or keep for copy
-      setPatientForm((p) => ({ ...p, password: '' }));
-      // Close modal after a short delay
-      setTimeout(() => setPatientModalOpen(false), 1000);
-    } catch (err: any) {
-      setPatientError(err?.message || 'Failed to register patient');
-    } finally {
-      setPatientSaving(false);
-    }
   };
 
   const openEditDiagnosis = (d: Diagnosis) => {
@@ -375,9 +428,34 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  const loadClinics = async () => {
+    if (clinicsLoading) return;
+    if (clinics.length > 0) return;
+
+    setClinicsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.CLINICS, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setClinics(Array.isArray(data) ? data : (data.data || []));
+      }
+    } catch (e: any) {
+      console.error('Failed to load clinics', e);
+    } finally {
+      setClinicsLoading(false);
+    }
+  };
+
   const openPrescriptionModal = async () => {
     setPrescriptionModalOpen(true);
     await loadInventory();
+    await loadClinics();
   };
 
   const createPrescription = async (payload: CreatePrescriptionPayload) => {
@@ -392,6 +470,49 @@ const DoctorDashboardView: React.FC = () => {
     } finally {
       setPrescriptionSaving(false);
     }
+  };
+
+  const editPrescription = async (prescription: DoctorPrescription) => {
+    setEditingPrescription(prescription);
+    setPrescriptionModalOpen(true);
+    await loadInventory();
+    await loadClinics();
+  };
+
+  const updatePrescription = async (payload: CreatePrescriptionPayload) => {
+    if (!editingPrescription) return;
+    
+    setError(null);
+    setPrescriptionSaving(true);
+    try {
+      await doctorApi.prescriptions.update(editingPrescription.id, payload);
+      setPrescriptionModalOpen(false);
+      setEditingPrescription(null);
+      await loadPrescriptions();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update prescription');
+    } finally {
+      setPrescriptionSaving(false);
+    }
+  };
+
+  const deletePrescription = async (prescription: DoctorPrescription) => {
+    if (!window.confirm(`Are you sure you want to delete prescription ${prescription.prescription_number}?`)) {
+      return;
+    }
+
+    setError(null);
+    try {
+      await doctorApi.prescriptions.delete(prescription.id);
+      await loadPrescriptions();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete prescription');
+    }
+  };
+
+  const closePrescriptionModal = () => {
+    setPrescriptionModalOpen(false);
+    setEditingPrescription(null);
   };
 
   const loadLabResults = async () => {
@@ -437,8 +558,17 @@ const DoctorDashboardView: React.FC = () => {
       await doctorApi.labs.createOrder(payload);
       setLabOrderModalOpen(false);
       setLabOrderForm((p) => ({ ...p, test_type: '', test_description: '', notes: '', instructions: '' }));
-      if (labsPatientId.trim() === String(patientId)) {
-        await loadLabResults();
+      // Set labsPatientId and reload lab data for this patient
+      setLabsPatientId(String(patientId));
+      // Force reload lab results
+      setLabsLoading(true);
+      try {
+        const data = await doctorApi.labs.getPatientResults(patientId);
+        setLabData(data);
+      } catch (loadError: any) {
+        console.error('Failed to reload lab results:', loadError);
+      } finally {
+        setLabsLoading(false);
       }
     } catch (e: any) {
       setError(e?.message || 'Failed to create lab order');
@@ -509,6 +639,105 @@ const DoctorDashboardView: React.FC = () => {
     }
   };
 
+  const createClinicReferral = async (payload: CreateClinicReferralPayload) => {
+    setError(null);
+    setClinicReferralSaving(true);
+    try {
+      await doctorApi.clinics.referPatient(payload);
+      setClinicReferralModalOpen(false);
+      toast.success('Patient successfully referred to clinic');
+    } catch (e: any) {
+      setError(e?.message || 'Failed to create clinic referral');
+      toast.error('Failed to create clinic referral');
+    } finally {
+      setClinicReferralSaving(false);
+    }
+  };
+
+  // Queue functions
+  const loadQueue = useCallback(async () => {
+    setError(null);
+    setQueueLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Failed to load queue');
+      const data = await response.json();
+      setQueueEntries(Array.isArray(data.data) ? data.data : []);
+      setQueueLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load queue');
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
+  // Daily Summary function
+  const loadDailySummary = useCallback(async (date: string) => {
+    setError(null);
+    setDailySummaryLoading(true);
+    try {
+      const data = await doctorApi.dashboard.getDailySummary(date);
+      setDailySummary(data);
+      setDailySummaryLoaded(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load daily summary');
+      toast.error(e?.message || 'Failed to load daily summary');
+    } finally {
+      setDailySummaryLoading(false);
+    }
+  }, []);
+
+  const callNextPatient = async () => {
+    setCallingNext(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE_CALL_NEXT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Failed to call next patient');
+      }
+      await loadQueue();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to call next patient');
+    } finally {
+      setCallingNext(false);
+    }
+  };
+
+  const updateQueueStatus = async (id: number, status: string) => {
+    setError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.DOCTOR_QUEUE_STATUS(String(id)), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) throw new Error('Failed to update status');
+      await loadQueue();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update status');
+    }
+  };
+
   useEffect(() => {
     if (active === 'prescriptions' && !prescriptionsLoaded && !prescriptionsLoading) {
       loadPrescriptions();
@@ -516,7 +745,31 @@ const DoctorDashboardView: React.FC = () => {
     if (active === 'referrals' && !referralsLoaded && !referralsLoading) {
       loadReferrals(initialReferralFilters);
     }
-  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading]);
+    if (active === 'queue' && !queueLoaded && !queueLoading) {
+      loadQueue();
+    }
+    if (active === 'daily_summary' && !dailySummaryLoaded && !dailySummaryLoading) {
+      loadDailySummary(dailySummaryDate);
+    }
+    // Auto-load lab results when switching to labs tab with a current consultation patient
+    if (active === 'labs' && currentPatientInConsultation && !labsLoading) {
+      const patientId = String(currentPatientInConsultation.patient_id);
+      if (labsPatientId !== patientId) {
+        setLabsPatientId(patientId);
+      }
+      // Load lab data for the current patient
+      if (labsPatientId.trim() !== '' || patientId) {
+        const pid = Number(patientId || labsPatientId);
+        if (Number.isFinite(pid) && pid > 0 && !labData) {
+          setLabsLoading(true);
+          doctorApi.labs.getPatientResults(pid)
+            .then(data => setLabData(data))
+            .catch(e => setError(e?.message || 'Failed to load lab results'))
+            .finally(() => setLabsLoading(false));
+        }
+      }
+    }
+  }, [active, initialReferralFilters, loadPrescriptions, loadReferrals, loadQueue, loadDailySummary, prescriptionsLoaded, prescriptionsLoading, referralsLoaded, referralsLoading, queueLoaded, queueLoading, dailySummaryLoaded, dailySummaryLoading, dailySummaryDate, currentPatientInConsultation, labsPatientId, labsLoading, labData]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaysAppointments = useMemo(
@@ -551,25 +804,18 @@ const DoctorDashboardView: React.FC = () => {
           <span className="text-sm font-medium">Overview</span>
         </button>
         <button
-          onClick={() => setActive('appointments')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'appointments' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
+          onClick={() => setActive('daily_summary')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'daily_summary' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
         >
-          <Calendar className="w-5 h-5" />
-          <span className="text-sm font-medium">Appointments</span>
+          <ClipboardList className="w-5 h-5" />
+          <span className="text-sm font-medium">Daily Summary</span>
         </button>
         <button
-          onClick={() => setActive('consultation')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'consultation' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
+          onClick={() => setActive('queue')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'queue' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
         >
-          <Video className="w-5 h-5" />
+          <Users className="w-5 h-5" />
           <span className="text-sm font-medium">Consultation</span>
-        </button>
-        <button
-          onClick={() => setActive('ehr')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${active === 'ehr' ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50'}`}
-        >
-          <FileText className="w-5 h-5" />
-          <span className="text-sm font-medium">EHR</span>
         </button>
         <button
           onClick={() => setActive('prescriptions')}
@@ -614,12 +860,12 @@ const DoctorDashboardView: React.FC = () => {
           {(
             [
               ['overview', 'Overview', LayoutDashboard],
-              ['appointments', 'Appointments', Calendar],
-              ['consultation', 'Consultation', Video],
-              ['ehr', 'EHR', FileText],
+              ['daily_summary', 'Daily Summary', ClipboardList],
+              ['queue', 'Consultation', Users],
               ['prescriptions', 'Prescriptions', Pill],
               ['labs', 'Lab Orders', FlaskConical],
               ['referrals', 'Referrals', Share2],
+              ...(isAIEnabled() ? [['ai_insights', 'AI Insights', Brain]] : []),
             ] as Array<[SectionKey, string, any]>
           ).map(([key, label, Icon]) => (
             <button
@@ -719,53 +965,15 @@ const DoctorDashboardView: React.FC = () => {
                     className="bg-white rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8"
                   >
                     <div className="mb-6">
-                      <Calendar className="w-12 h-12 text-teal-500 mb-4" />
-                      <h2 className="text-xl font-bold text-gray-800 mb-3">Appointments</h2>
-                      <p className="text-gray-600">View daily & upcoming appointments</p>
+                      <Users className="w-12 h-12 text-teal-500 mb-4" />
+                      <h2 className="text-xl font-bold text-gray-800 mb-3">Patient Queue</h2>
+                      <p className="text-gray-600">View and manage waiting patients</p>
                     </div>
                     <button
-                      onClick={() => setActive('appointments')}
+                      onClick={() => setActive('queue')}
                       className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
                     >
                       View
-                    </button>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.1 }}
-                    className="bg-white rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8"
-                  >
-                    <div className="mb-6">
-                      <FileText className="w-12 h-12 text-teal-500 mb-4" />
-                      <h2 className="text-xl font-bold text-gray-800 mb-3">EHR</h2>
-                      <p className="text-gray-600">Access patient medical records</p>
-                    </div>
-                    <button
-                      onClick={() => setActive('ehr')}
-                      className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
-                    >
-                      Open
-                    </button>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.2 }}
-                    className="bg-white rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8"
-                  >
-                    <div className="mb-6">
-                      <ClipboardList className="w-12 h-12 text-teal-500 mb-4" />
-                      <h2 className="text-xl font-bold text-gray-800 mb-3">Register Patient</h2>
-                      <p className="text-gray-600">Create a new patient account</p>
-                    </div>
-                    <button
-                      onClick={openPatientRegistration}
-                      className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
-                    >
-                      Register Patient
                     </button>
                   </motion.div>
 
@@ -800,7 +1008,7 @@ const DoctorDashboardView: React.FC = () => {
                       <p className="text-gray-600">Start and manage consultations</p>
                     </div>
                     <button
-                      onClick={() => setActive('consultation')}
+                      onClick={() => setActive('queue')}
                       className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
                     >
                       Start
@@ -835,15 +1043,54 @@ const DoctorDashboardView: React.FC = () => {
                     <div className="mb-6">
                       <Share2 className="w-12 h-12 text-teal-500 mb-4" />
                       <h2 className="text-xl font-bold text-gray-800 mb-3">Referrals</h2>
-                      <p className="text-gray-600">Refer patients to specialists</p>
+                      <p className="text-gray-600">Refer patients to specialists and clinics</p>
                     </div>
-                    <button
-                      onClick={() => setActive('referrals')}
-                      className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
-                    >
-                      Refer
-                    </button>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setActive('referrals')}
+                        className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        Doctor Referrals
+                      </button>
+                      <button
+                        onClick={() => setClinicReferralModalOpen(true)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        Refer to Clinic
+                      </button>
+                      <button
+                        onClick={() => setPatientLookupModalOpen(true)}
+                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 w-full text-sm"
+                      >
+                        View Patient Records
+                      </button>
+                    </div>
                   </motion.div>
+
+                  {isAIEnabled() && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 50 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.6 }}
+                      className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 p-8 border border-blue-200"
+                    >
+                      <div className="mb-6">
+                        <Brain className="w-12 h-12 text-blue-600 mb-4" />
+                        <h2 className="text-xl font-bold text-gray-800 mb-3">AI Medical Insights</h2>
+                        <p className="text-gray-600">GPT-5.2-Codex powered analysis</p>
+                        <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>AI Enabled</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActive('ai_insights')}
+                        className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full"
+                      >
+                        Explore AI
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -867,103 +1114,254 @@ const DoctorDashboardView: React.FC = () => {
               </div>
             )}
 
-            {active === 'appointments' && (
+            {active === 'daily_summary' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
-                    <p className="text-gray-600 text-sm">Filter and manage your schedule</p>
+                    <h2 className="text-2xl font-bold text-gray-900">Daily Summary</h2>
+                    <p className="text-gray-600 text-sm">View summary of patients consulted for selected date</p>
                   </div>
-                  <button
-                    onClick={() => refreshAppointments(appointmentFilters)}
-                    className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                      <input
-                        type="date"
-                        value={appointmentFilters.date}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, date: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Patient</label>
-                      <input
-                        type="text"
-                        value={appointmentFilters.patient_name}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, patient_name: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="Search name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <select
-                        value={appointmentFilters.status}
-                        onChange={(e) => setAppointmentFilters((p) => ({ ...p, status: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      >
-                        <option value="">All</option>
-                        <option value="scheduled">scheduled</option>
-                        <option value="completed">completed</option>
-                        <option value="cancelled">cancelled</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => refreshAppointments(appointmentFilters)}
-                        className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
-                      >
-                        Apply
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="date"
+                      value={dailySummaryDate}
+                      onChange={(e) => {
+                        setDailySummaryDate(e.target.value);
+                        setDailySummary(null);
+                        setDailySummaryLoaded(false);
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <button
+                      onClick={() => loadDailySummary(dailySummaryDate)}
+                      disabled={dailySummaryLoading}
+                      className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-2 px-6 rounded-full transition duration-300"
+                    >
+                      {dailySummaryLoading ? 'Loading...' : 'Load Summary'}
+                    </button>
                   </div>
                 </div>
 
-                <AppointmentTable
-                  appointments={appointments}
-                  loading={appointmentsLoading}
-                  onView={(appt) => setSelectedAppointment(appt)}
-                  onOpenEhr={(pid) => {
-                    setActive('ehr');
-                    setEhrPatientId(String(pid));
-                    loadEhr(pid);
-                  }}
-                  onStartConsultation={openConsultation}
-                  onUpdateStatus={updateAppointmentStatus}
-                />
+                {dailySummaryLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+                    <span className="ml-3 text-gray-600">Loading daily summary...</span>
+                  </div>
+                )}
 
-                {selectedAppointment && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div>
-                        <div className="text-sm text-gray-600">Selected Appointment</div>
-                        <div className="text-lg font-semibold text-gray-900">
-                          #{selectedAppointment.id} - {selectedAppointment.appointment_date} {(selectedAppointment.appointment_time || '').slice(0, 5)}
+                {!dailySummaryLoading && dailySummary && (
+                  <>
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                      <div className="bg-white rounded-lg shadow p-4 text-center border-l-4 border-teal-500">
+                        <h3 className="text-3xl font-bold text-teal-600">{dailySummary.stats.completed_consultations}</h3>
+                        <p className="text-gray-600 text-sm">Consultations</p>
+                      </div>
+                      <div className="bg-white rounded-lg shadow p-4 text-center border-l-4 border-blue-500">
+                        <h3 className="text-3xl font-bold text-blue-600">{dailySummary.stats.prescriptions_issued}</h3>
+                        <p className="text-gray-600 text-sm">Prescriptions</p>
+                      </div>
+                      <div className="bg-white rounded-lg shadow p-4 text-center border-l-4 border-purple-500">
+                        <h3 className="text-3xl font-bold text-purple-600">{dailySummary.stats.lab_orders_placed}</h3>
+                        <p className="text-gray-600 text-sm">Lab Orders</p>
+                      </div>
+                      <div className="bg-white rounded-lg shadow p-4 text-center border-l-4 border-orange-500">
+                        <h3 className="text-3xl font-bold text-orange-600">{dailySummary.stats.referrals_made}</h3>
+                        <p className="text-gray-600 text-sm">Referrals</p>
+                      </div>
+                      <div className="bg-white rounded-lg shadow p-4 text-center border-l-4 border-gray-500">
+                        <h3 className="text-3xl font-bold text-gray-600">{dailySummary.stats.pending_appointments}</h3>
+                        <p className="text-gray-600 text-sm">Pending</p>
+                      </div>
+                    </div>
+
+                    {/* Consultation Type Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-green-700 font-medium">In-Person Consultations</span>
+                          <span className="text-2xl font-bold text-green-600">{dailySummary.stats.in_person_consultations}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openConsultation(selectedAppointment)}
-                          className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                        >
-                          Start Consultation
-                        </button>
-                        <button
-                          onClick={() => setSelectedAppointment(null)}
-                          className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                        >
-                          Clear
-                        </button>
+                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-700 font-medium">Telemedicine Consultations</span>
+                          <span className="text-2xl font-bold text-blue-600">{dailySummary.stats.telemedicine_consultations}</span>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Consulted Patients List */}
+                    <div className="bg-white rounded-lg shadow">
+                      <div className="p-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Patients Consulted ({dailySummary.consulted_patients.length})
+                        </h3>
+                      </div>
+                      {dailySummary.consulted_patients.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">
+                          No consultations completed for this date.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {dailySummary.consulted_patients.map((patient: ConsultedPatient) => (
+                            <div key={patient.appointment_id} className="p-4 hover:bg-gray-50">
+                              <div 
+                                className="flex items-center justify-between cursor-pointer"
+                                onClick={() => setExpandedPatientId(expandedPatientId === patient.patient_id ? null : patient.patient_id)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center font-semibold">
+                                    {patient.patient_name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold text-gray-900">{patient.patient_name}</h4>
+                                    <div className="flex items-center gap-3 text-sm text-gray-500">
+                                      <span>{patient.appointment_time?.slice(0, 5)}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                        patient.consultation_type === 'in_person' 
+                                          ? 'bg-green-100 text-green-700' 
+                                          : 'bg-blue-100 text-blue-700'
+                                      }`}>
+                                        {patient.consultation_type === 'in_person' ? 'In-Person' : 'Telemedicine'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="flex gap-2">
+                                    {patient.prescriptions_count > 0 && (
+                                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                                        {patient.prescriptions_count} Rx
+                                      </span>
+                                    )}
+                                    {patient.lab_orders_count > 0 && (
+                                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                                        {patient.lab_orders_count} Lab
+                                      </span>
+                                    )}
+                                    {patient.referrals_count > 0 && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                                        {patient.referrals_count} Ref
+                                      </span>
+                                    )}
+                                  </div>
+                                  <svg 
+                                    className={`w-5 h-5 text-gray-400 transition-transform ${expandedPatientId === patient.patient_id ? 'rotate-180' : ''}`} 
+                                    fill="none" 
+                                    viewBox="0 0 24 24" 
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* Expanded Details */}
+                              {expandedPatientId === patient.patient_id && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="mt-4 pl-14 space-y-3"
+                                >
+                                  {/* Contact Info */}
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-gray-500">Phone:</span>
+                                      <span className="ml-2 text-gray-900">{patient.patient_phone}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Gender:</span>
+                                      <span className="ml-2 text-gray-900 capitalize">{patient.patient_gender}</span>
+                                    </div>
+                                    {patient.patient_email && (
+                                      <div>
+                                        <span className="text-gray-500">Email:</span>
+                                        <span className="ml-2 text-gray-900">{patient.patient_email}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Reason & Notes */}
+                                  {patient.reason && (
+                                    <div className="text-sm">
+                                      <span className="text-gray-500 font-medium">Reason:</span>
+                                      <span className="ml-2 text-gray-700">{patient.reason}</span>
+                                    </div>
+                                  )}
+                                  {patient.notes && (
+                                    <div className="text-sm bg-gray-50 p-3 rounded">
+                                      <span className="text-gray-500 font-medium">Notes:</span>
+                                      <p className="mt-1 text-gray-700">{patient.notes}</p>
+                                    </div>
+                                  )}
+
+                                  {/* Prescriptions */}
+                                  {patient.prescriptions.length > 0 && (
+                                    <div className="bg-blue-50 p-3 rounded">
+                                      <h5 className="text-sm font-semibold text-blue-800 mb-2">Prescriptions</h5>
+                                      <div className="space-y-1">
+                                        {patient.prescriptions.map((rx) => (
+                                          <div key={rx.id} className="flex items-center justify-between text-sm">
+                                            <span className="text-blue-700">{rx.prescription_number}</span>
+                                            <span className="text-blue-600">{rx.items_count} items • {rx.status}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Lab Orders */}
+                                  {patient.lab_orders.length > 0 && (
+                                    <div className="bg-purple-50 p-3 rounded">
+                                      <h5 className="text-sm font-semibold text-purple-800 mb-2">Lab Orders</h5>
+                                      <div className="space-y-1">
+                                        {patient.lab_orders.map((lab) => (
+                                          <div key={lab.id} className="flex items-center justify-between text-sm">
+                                            <span className="text-purple-700">{lab.test_type}</span>
+                                            <span className="text-purple-600">{lab.status}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Referrals */}
+                                  {patient.referrals.length > 0 && (
+                                    <div className="bg-orange-50 p-3 rounded">
+                                      <h5 className="text-sm font-semibold text-orange-800 mb-2">Clinic Referrals</h5>
+                                      <div className="space-y-1">
+                                        {patient.referrals.map((ref) => (
+                                          <div key={ref.id} className="flex items-center justify-between text-sm">
+                                            <span className="text-orange-700">{ref.clinic_name}</span>
+                                            <span className={`px-2 py-0.5 rounded text-xs ${
+                                              ref.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                                              ref.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                                              'bg-gray-100 text-gray-700'
+                                            }`}>
+                                              {ref.priority}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </motion.div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {!dailySummaryLoading && !dailySummary && (
+                  <div className="bg-white rounded-lg shadow p-8 text-center">
+                    <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">No Summary Loaded</h3>
+                    <p className="text-gray-500">Select a date and click "Load Summary" to view your consultation history.</p>
                   </div>
                 )}
               </div>
@@ -1006,23 +1404,14 @@ const DoctorDashboardView: React.FC = () => {
 
                       <div className="mt-4 flex gap-2 flex-wrap">
                         <button
-                          onClick={() => {
-                            setActive('ehr');
-                            setEhrPatientId(String(selectedAppointment.patient_id));
-                            loadEhr(selectedAppointment.patient_id);
-                          }}
-                          className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                        >
-                          Open EHR
-                        </button>
-                        <button
-                          onClick={() => {
+                          onClick={async () => {
                             setLabOrderForm((p) => ({
                               ...p,
                               patient_id: String(selectedAppointment.patient_id),
                               appointment_id: String(selectedAppointment.id),
                             }));
                             setLabOrderModalOpen(true);
+                            await loadClinics();
                           }}
                           className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
                         >
@@ -1153,23 +1542,6 @@ const DoctorDashboardView: React.FC = () => {
                 )}
               </div>
             )}
-
-            {active === 'ehr' && (
-              <EhrViewer
-                patientId={ehrPatientId}
-                onPatientIdChange={setEhrPatientId}
-                onLoad={() => {
-                  const pid = Number(ehrPatientId);
-                  if (!Number.isFinite(pid) || pid <= 0) return;
-                  loadEhr(pid);
-                }}
-                loading={ehrLoading}
-                data={ehrData}
-                tab={ehrTab}
-                onTabChange={setEhrTab}
-              />
-            )}
-
             {active === 'prescriptions' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1201,7 +1573,7 @@ const DoctorDashboardView: React.FC = () => {
                       <table className="w-full">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mobile</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -1220,19 +1592,39 @@ const DoctorDashboardView: React.FC = () => {
                               const patientName = p.patient
                                 ? `${p.patient.first_name || ''} ${p.patient.last_name || ''}`.trim() || p.patient.email || `#${p.patient.id}`
                                 : `#${p.patient_id}`;
+                              const patientProfile = p.patient?.patient_profile;
+                              const patientPhone = patientProfile?.phone || patientProfile?.guardian_phone || 'N/A';
                               return (
                                 <tr key={p.id} className="hover:bg-gray-50">
-                                  <td className="px-6 py-4 text-sm text-gray-900">{p.prescription_number || p.id}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900">{patientPhone}</td>
                                   <td className="px-6 py-4 text-sm text-gray-600">{patientName}</td>
                                   <td className="px-6 py-4 text-sm text-gray-600">{p.prescription_date}</td>
                                   <td className="px-6 py-4 text-sm text-gray-600">{p.status}</td>
                                   <td className="px-6 py-4">
-                                    <button
-                                      onClick={() => openPrescriptionDetails(p)}
-                                      className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-full text-xs transition duration-300"
-                                    >
-                                      View
-                                    </button>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => openPrescriptionDetails(p)}
+                                        className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                      >
+                                        View
+                                      </button>
+                                      {p.status === 'pending' && (
+                                        <>
+                                          <button
+                                            onClick={() => editPrescription(p)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            onClick={() => deletePrescription(p)}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded text-xs transition duration-300"
+                                          >
+                                            Delete
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -1288,6 +1680,8 @@ const DoctorDashboardView: React.FC = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dosage</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meal Timing</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200">
@@ -1297,6 +1691,8 @@ const DoctorDashboardView: React.FC = () => {
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.quantity}</td>
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.dosage || '-'}</td>
                                       <td className="px-6 py-4 text-sm text-gray-600">{it.frequency || '-'}</td>
+                                      <td className="px-6 py-4 text-sm text-gray-600">{it.meal_timing || '-'}</td>
+                                      <td className="px-6 py-4 text-sm text-gray-600">{it.duration_days || '-'}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1319,12 +1715,13 @@ const DoctorDashboardView: React.FC = () => {
                     <p className="text-gray-600 text-sm">Create orders and review patient results</p>
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setLabOrderForm((p) => ({
                         ...p,
                         patient_id: labsPatientId,
                       }));
                       setLabOrderModalOpen(true);
+                      await loadClinics();
                     }}
                     className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-full transition duration-300"
                   >
@@ -1356,6 +1753,51 @@ const DoctorDashboardView: React.FC = () => {
 
                 {labData && (
                   <div className="space-y-6">
+                    {/* Lab Orders Section */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Lab Orders</h3>
+                      {labData.orders.length === 0 ? (
+                        <div className="text-gray-600">No lab orders found.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Type</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {labData.orders.map((order) => (
+                                <tr key={order.id} className="hover:bg-gray-50">
+                                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{order.order_number}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900">{order.test_type}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.test_description || '-'}</td>
+                                  <td className="px-6 py-4">
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      order.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {order.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.order_date}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{order.due_date || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Lab Results Section */}
                     <div className="bg-white rounded-lg shadow-lg p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Results</h3>
                       {labData.results.length === 0 ? (
@@ -1393,6 +1835,341 @@ const DoctorDashboardView: React.FC = () => {
                           </table>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active === 'queue' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Consultation</h2>
+                    <p className="text-gray-600 text-sm">View and manage patients for consultation</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={callNextPatient}
+                      disabled={callingNext || filteredQueueEntries.filter(e => e.status === 'waiting').length === 0}
+                      className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
+                    >
+                      {callingNext ? 'Calling...' : 'Call Next Patient'}
+                    </button>
+                    <button
+                      onClick={() => loadQueue()}
+                      disabled={queueLoading}
+                      className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-full transition duration-300"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {/* Consultation Type Selection */}
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Consultation Type</h3>
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      onClick={() => setConsultationTypeFilter('online')}
+                      className={`flex-1 min-w-[200px] flex items-center gap-3 p-4 rounded-lg border-2 transition ${
+                        consultationTypeFilter === 'online' 
+                          ? 'border-teal-600 bg-teal-100 ring-2 ring-teal-400' 
+                          : 'border-teal-500 bg-teal-50 hover:bg-teal-100'
+                      }`}
+                    >
+                      <Video className="w-8 h-8 text-teal-600" />
+                      <div className="text-left">
+                        <div className="font-semibold text-teal-700">Online Consultation</div>
+                        <div className="text-sm text-teal-600">Telemedicine / Video Call</div>
+                        <div className="text-xs text-teal-500 mt-1">
+                          {queueEntries.filter(e => {
+                            const t = e.appointment?.type?.toLowerCase() || '';
+                            return t === 'telemedicine' || t === 'online' || t === 'video';
+                          }).length} patients
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setConsultationTypeFilter('physical')}
+                      className={`flex-1 min-w-[200px] flex items-center gap-3 p-4 rounded-lg border-2 transition ${
+                        consultationTypeFilter === 'physical' 
+                          ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-400' 
+                          : 'border-blue-500 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                    >
+                      <Users className="w-8 h-8 text-blue-600" />
+                      <div className="text-left">
+                        <div className="font-semibold text-blue-700">Physical Consultation</div>
+                        <div className="text-sm text-blue-600">In-Person Visit</div>
+                        <div className="text-xs text-blue-500 mt-1">
+                          {queueEntries.filter(e => {
+                            const t = e.appointment?.type?.toLowerCase() || '';
+                            return t !== 'telemedicine' && t !== 'online' && t !== 'video';
+                          }).length} patients
+                        </div>
+                      </div>
+                    </button>
+                    {consultationTypeFilter !== 'all' && (
+                      <button
+                        onClick={() => setConsultationTypeFilter('all')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-gray-300 bg-gray-50 hover:bg-gray-100 transition text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Show All</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Current Patient Card */}
+                {(() => {
+                  const currentPatient = filteredQueueEntries.find(e => e.status === 'in_consultation' || e.status === 'in_progress');
+                  const nextPatient = filteredQueueEntries.find(e => e.status === 'waiting');
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Current Patient */}
+                      <div className={`p-6 rounded-lg shadow-lg ${currentPatient ? 'bg-teal-50 border-2 border-teal-500' : 'bg-gray-50'}`}>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Current Patient</h3>
+                        {currentPatient ? (
+                          <div>
+                            <p className="text-2xl font-bold text-teal-700">{getPatientName(currentPatient)}</p>
+                            <p className="text-sm text-gray-600 mt-1">Queue #{currentPatient.queue_number} | Patient ID: {currentPatient.patient_id}</p>
+                            {currentPatient.appointment && (
+                              <p className="text-sm text-gray-500">Appointment: {currentPatient.appointment.appointment_time}</p>
+                            )}
+                            
+                            {/* Action Buttons for Current Patient */}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                onClick={async () => {
+                                  setLabOrderForm((p) => ({
+                                    ...p,
+                                    patient_id: String(currentPatient.patient_id),
+                                    appointment_id: currentPatient.appointment_id ? String(currentPatient.appointment_id) : '',
+                                  }));
+                                  setLabOrderModalOpen(true);
+                                  await loadClinics();
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Lab Test
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  // Set patient context for prescription
+                                  setSelectedAppointment({
+                                    id: currentPatient.appointment_id || 0,
+                                    patient_id: currentPatient.patient_id,
+                                    patient: currentPatient.patient,
+                                  } as any);
+                                  await openPrescriptionModal();
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Prescription
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setClinicReferralPatientId(currentPatient.patient_id);
+                                  setClinicReferralModalOpen(true);
+                                }}
+                                className="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-md transition text-sm border border-slate-500"
+                              >
+                                Refer to Clinic
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => updateQueueStatus(currentPatient.id as number, 'completed')}
+                              className="mt-4 bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-md transition w-full"
+                            >
+                              Mark Complete
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">No patient in consultation</p>
+                        )}
+                      </div>
+
+                      {/* Next Patient */}
+                      <div className={`p-6 rounded-lg shadow-lg ${nextPatient ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-gray-50'}`}>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">Next Patient</h3>
+                        {nextPatient ? (
+                          <div>
+                            <p className="text-2xl font-bold text-yellow-700">{getPatientName(nextPatient)}</p>
+                            <p className="text-sm text-gray-600 mt-1">Queue #{nextPatient.queue_number}</p>
+                            {nextPatient.appointment && (
+                              <p className="text-sm text-gray-500">Appointment: {nextPatient.appointment.appointment_time}</p>
+                            )}
+                            <button
+                              onClick={() => updateQueueStatus(nextPatient.id as number, 'in_consultation')}
+                              className="mt-4 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                            >
+                              Start Consultation
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">No patients waiting</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Queue Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-yellow-600">{filteredQueueEntries.filter(e => e.status === 'waiting').length}</p>
+                    <p className="text-sm text-gray-600">Waiting</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-teal-600">{filteredQueueEntries.filter(e => e.status === 'in_consultation' || e.status === 'in_progress').length}</p>
+                    <p className="text-sm text-gray-600">In Consultation</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow text-center">
+                    <p className="text-3xl font-bold text-green-600">{filteredQueueEntries.filter(e => e.status === 'completed').length}</p>
+                    <p className="text-sm text-gray-600">Completed Today</p>
+                  </div>
+                </div>
+
+                {queueLoading ? (
+                  <div className="text-center py-12">Loading...</div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
+                      <h3 className="font-semibold text-gray-700">
+                        {consultationTypeFilter === 'online' ? 'Online Consultation Queue' : 
+                         consultationTypeFilter === 'physical' ? 'Physical Consultation Queue' : 'All Patients Queue'}
+                      </h3>
+                      <span className="text-sm text-gray-500">{filteredQueueEntries.filter(e => e.status === 'waiting' || e.status === 'in_consultation' || e.status === 'in_progress').length} patients</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Queue #</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Appointment</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {filteredQueueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-8 text-center text-gray-600">
+                                {consultationTypeFilter === 'all' 
+                                  ? 'No patients in queue.' 
+                                  : `No patients for ${consultationTypeFilter === 'online' ? 'online' : 'physical'} consultation.`}
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredQueueEntries.filter(e => e.status !== 'completed' && e.status !== 'no_show' && e.status !== 'cancelled').map((entry, index) => (
+                              <tr key={entry.id} className={`hover:bg-gray-50 ${entry.status === 'in_consultation' || entry.status === 'in_progress' ? 'bg-teal-50' : index === 0 && entry.status === 'waiting' ? 'bg-yellow-50' : ''}`}>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                  {entry.queue_number ?? '-'}
+                                  {index === 0 && entry.status === 'waiting' && (
+                                    <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded">NEXT</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{getPatientName(entry)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                  {entry.appointment ? (
+                                    <span>{entry.appointment.appointment_time} - {entry.appointment.type}</span>
+                                  ) : '-'}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    entry.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                                    entry.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                                    (entry.status === 'in_consultation' || entry.status === 'in_progress') ? 'bg-teal-100 text-teal-800' :
+                                    entry.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {entry.status.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                  {entry.checked_in_at ? new Date(entry.checked_in_at).toLocaleTimeString() : 
+                                   entry.appointment?.appointment_time || '-'}
+                                </td>
+                                <td className="px-6 py-4 text-sm">
+                                  <div className="flex flex-wrap gap-1">
+                                    {(entry.status === 'waiting' || entry.status === 'scheduled') && typeof entry.id === 'number' && (
+                                      <button
+                                        onClick={() => updateQueueStatus(entry.id as number, 'in_consultation')}
+                                        className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+                                    {(entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                      <>
+                                        <button
+                                          onClick={async () => {
+                                            setLabOrderForm((p) => ({
+                                              ...p,
+                                              patient_id: String(entry.patient_id),
+                                              appointment_id: entry.appointment_id ? String(entry.appointment_id) : '',
+                                            }));
+                                            setLabOrderModalOpen(true);
+                                            await loadClinics();
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Order Lab Test"
+                                        >
+                                          Lab
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            setSelectedAppointment({
+                                              id: entry.appointment_id || 0,
+                                              patient_id: entry.patient_id,
+                                              patient: entry.patient,
+                                            } as any);
+                                            await openPrescriptionModal();
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Create Prescription"
+                                        >
+                                          Rx
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setClinicReferralPatientId(entry.patient_id);
+                                            setClinicReferralModalOpen(true);
+                                          }}
+                                          className="text-slate-700 hover:text-slate-900 font-medium text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-300"
+                                          title="Refer to Clinic"
+                                        >
+                                          Refer
+                                        </button>
+                                        <button
+                                          onClick={() => updateQueueStatus(entry.id as number, 'completed')}
+                                          className="text-teal-700 hover:text-teal-900 font-medium text-xs bg-teal-50 hover:bg-teal-100 px-2 py-1 rounded border border-teal-300"
+                                        >
+                                          Done
+                                        </button>
+                                      </>
+                                    )}
+                                    {(entry.status === 'waiting' || entry.status === 'in_consultation' || entry.status === 'in_progress') && typeof entry.id === 'number' && (
+                                      <button
+                                        onClick={() => updateQueueStatus(entry.id as number, 'no_show')}
+                                        className="text-gray-600 hover:text-gray-800 font-medium text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded border border-gray-300"
+                                      >
+                                        No Show
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
@@ -1500,6 +2277,71 @@ const DoctorDashboardView: React.FC = () => {
                 )}
               </div>
             )}
+
+            {active === 'ai_insights' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">AI Medical Insights</h2>
+                    <p className="text-gray-600 text-sm">GPT-5.2-Codex powered medical analysis and decision support</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-2 rounded-full text-sm">
+                    <Brain className="w-4 h-4" />
+                    <span>AI Enabled</span>
+                  </div>
+                </div>
+
+                <AIInsightsPanel 
+                  context="doctor" 
+                  patientId={selectedPatientForAI || undefined} 
+                  data={{ appointments, prescriptions, labData }}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Patient for AI Analysis</h3>
+                    <select
+                      value={selectedPatientForAI || ''}
+                      onChange={(e) => setSelectedPatientForAI(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a patient...</option>
+                      {appointments.map((appointment) => (
+                        <option key={appointment.id} value={appointment.patient_id.toString()}>
+                          Patient ID: {appointment.patient_id} - {appointment.appointment_date}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">AI Features Available</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Medical Insights & Analysis</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Drug Interaction Checking</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Clinical Decision Support</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Patient Analytics</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>AI Medical Chat Assistant</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1520,15 +2362,14 @@ const DoctorDashboardView: React.FC = () => {
 
         <PrescriptionForm
           open={prescriptionModalOpen}
-          saving={prescriptionSaving || inventoryLoading}
+          saving={prescriptionSaving || inventoryLoading || clinicsLoading}
           inventory={inventory}
+          clinics={clinics}
           initialPatientId={selectedAppointment?.patient_id ?? null}
           initialAppointmentId={selectedAppointment?.id ?? null}
-          onClose={() => {
-            if (prescriptionSaving) return;
-            setPrescriptionModalOpen(false);
-          }}
-          onSubmit={createPrescription}
+          initialPrescription={editingPrescription}
+          onClose={closePrescriptionModal}
+          onSubmit={editingPrescription ? updatePrescription : createPrescription}
         />
 
         {labOrderModalOpen && (
@@ -1556,28 +2397,35 @@ const DoctorDashboardView: React.FC = () => {
                       required
                       value={labOrderForm.patient_id}
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, patient_id: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      readOnly={labOrderForm.patient_id !== ''}
+                      className={`w-full px-3 py-2 border rounded-lg ${labOrderForm.patient_id !== '' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID (optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID</label>
                     <input
                       type="number"
                       value={labOrderForm.appointment_id}
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, appointment_id: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      readOnly={labOrderForm.appointment_id !== ''}
+                      className={`w-full px-3 py-2 border rounded-lg ${labOrderForm.appointment_id !== '' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Test Type *</label>
-                    <input
-                      type="text"
+                    <select
                       required
                       value={labOrderForm.test_type}
                       onChange={(e) => setLabOrderForm((p) => ({ ...p, test_type: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="e.g. CBC"
-                    />
+                    >
+                      <option value="">Select Test Type</option>
+                      {testTypes.map((testType) => (
+                        <option key={testType} value={testType}>
+                          {testType}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Order Date *</label>
@@ -1627,149 +2475,35 @@ const DoctorDashboardView: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={labOrderSaving}
-                  className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
-                >
-                  {labOrderSaving ? 'Saving...' : 'Create Order'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {patientModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold">Register Patient</h2>
-                <button
-                  type="button"
-                  onClick={() => !patientSaving && setPatientModalOpen(false)}
-                  disabled={patientSaving}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-60"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {patientError && <div className="mb-4 text-sm text-red-700">{patientError}</div>}
-              {patientSuccessMsg && (
-                <div className="mb-4 text-sm text-green-700">
-                  {patientSuccessMsg}{generatedPassword ? <div className="mt-2 text-xs text-gray-700">Generated password: <code className="bg-gray-100 px-2 py-1 rounded">{generatedPassword}</code></div> : null}
-                </div>
-              )}
-
-              <form onSubmit={createPatient} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                    <input
-                      required
-                      value={patientForm.name}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, name: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                    <input
-                      required
-                      type="email"
-                      value={patientForm.email}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, email: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Password (optional)</label>
-                    <input
-                      type="password"
-                      value={patientForm.password || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, password: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="Leave blank to auto-generate"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                    <input
-                      type="date"
-                      value={patientForm.date_of_birth || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, date_of_birth: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input
-                      value={patientForm.phone || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, phone: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                    <select
-                      value={patientForm.gender || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, gender: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    >
-                      <option value="">Select</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Blood Type</label>
-                    <input
-                      value={patientForm.blood_type || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, blood_type: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="e.g. A+"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      value={patientForm.address || ''}
-                      onChange={(e) => setPatientForm((p) => ({ ...p, address: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPatientModalOpen(false)}
-                    className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
-                    disabled={patientSaving}
-                  >
-                    Cancel
-                  </button>
+                <div className="flex gap-4">
                   <button
                     type="submit"
-                    className="px-6 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white font-bold"
-                    disabled={patientSaving}
+                    disabled={labOrderSaving}
+                    className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
                   >
-                    {patientSaving ? 'Registering...' : 'Register Patient'}
+                    {labOrderSaving ? 'Saving...' : 'Create Order'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const patientId = Number(labOrderForm.patient_id);
+                      if (!Number.isFinite(patientId) || patientId <= 0) {
+                        toast.error('Please enter a valid patient ID first');
+                        return;
+                      }
+                      setClinicReferralPatientId(patientId);
+                      setClinicReferralModalOpen(true);
+                    }}
+                    disabled={labOrderSaving}
+                    className="bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
+                  >
+                    Refer to Clinic
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
-
         {referralModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -1876,6 +2610,23 @@ const DoctorDashboardView: React.FC = () => {
             </div>
           </div>
         )}
+
+        <ClinicReferralForm
+          open={clinicReferralModalOpen}
+          onClose={() => {
+            setClinicReferralModalOpen(false);
+            setClinicReferralPatientId(null);
+          }}
+          onSubmit={createClinicReferral}
+          saving={clinicReferralSaving}
+          initialPatientId={clinicReferralPatientId ?? selectedAppointment?.patient_id ?? null}
+        />
+
+        {/* Patient Lookup Modal */}
+        <PatientLookup
+          open={patientLookupModalOpen}
+          onClose={() => setPatientLookupModalOpen(false)}
+        />
       </div>
     </div>
   );

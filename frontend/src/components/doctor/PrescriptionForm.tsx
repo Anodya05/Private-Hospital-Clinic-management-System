@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { X, Search, ChevronDown } from 'lucide-react';
 import type { CreatePrescriptionPayload } from '../../types/doctor';
 
 export interface InventoryOption {
@@ -7,6 +7,12 @@ export interface InventoryOption {
   name: string;
   generic_name?: string | null;
   brand_name?: string | null;
+  category?: string | null;
+}
+
+export interface ClinicOption {
+  id: number;
+  name: string;
 }
 
 interface ItemRow {
@@ -16,14 +22,183 @@ interface ItemRow {
   frequency: string;
   duration_days: string;
   instructions: string;
+  meal_timing: string;
 }
+
+// Searchable Medicine Select Component
+interface MedicineSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: InventoryOption[];
+  required?: boolean;
+}
+
+const MedicineSelect: React.FC<MedicineSelectProps> = ({ value, onChange, options, required }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedOption = options.find(o => String(o.id) === value);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const term = search.toLowerCase();
+    return options.filter(o => 
+      o.name.toLowerCase().includes(term) ||
+      (o.generic_name && o.generic_name.toLowerCase().includes(term)) ||
+      (o.brand_name && o.brand_name.toLowerCase().includes(term)) ||
+      (o.category && o.category.toLowerCase().includes(term))
+    );
+  }, [options, search]);
+
+  // Group by category
+  const groupedOptions = useMemo(() => {
+    const groups: Record<string, InventoryOption[]> = {};
+    filteredOptions.forEach(opt => {
+      const cat = opt.category || 'Other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(opt);
+    });
+    return groups;
+  }, [filteredOptions]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between bg-white hover:bg-gray-50"
+      >
+        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
+          {selectedOption ? selectedOption.name : 'Select medicine...'}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {/* Hidden input for form validation */}
+      <input 
+        type="text" 
+        value={value} 
+        required={required} 
+        onChange={() => {}} 
+        className="sr-only" 
+        tabIndex={-1}
+      />
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-80 overflow-hidden">
+          {/* Search Input */}
+          <div className="p-2 border-b sticky top-0 bg-white">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, generic, brand, or category..."
+                className="w-full pl-9 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          {/* Options List */}
+          <div className="overflow-y-auto max-h-60">
+            {filteredOptions.length === 0 ? (
+              <div className="p-4 text-center text-gray-500 text-sm">No medicines found</div>
+            ) : (
+              Object.entries(groupedOptions).map(([category, items]) => (
+                <div key={category}>
+                  <div className="px-3 py-1 bg-gray-100 text-xs font-semibold text-gray-600 uppercase tracking-wider sticky top-0">
+                    {category}
+                  </div>
+                  {items.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(String(opt.id));
+                        setIsOpen(false);
+                        setSearch('');
+                      }}
+                      className={`w-full px-3 py-2 text-left hover:bg-teal-50 transition ${
+                        String(opt.id) === value ? 'bg-teal-100' : ''
+                      }`}
+                    >
+                      <div className="font-medium text-gray-900 text-sm">{opt.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {opt.generic_name && <span>{opt.generic_name}</span>}
+                        {opt.brand_name && opt.generic_name && <span> • </span>}
+                        {opt.brand_name && <span className="text-teal-600">{opt.brand_name}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Extract dosage from medicine name (e.g. "Amlodipine 10mg" -> "10mg")
+const extractDosageFromName = (medicineName: string): string => {
+  const dosageMatch = medicineName.match(/\b(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?|iu|%))\b/i);
+  return dosageMatch ? dosageMatch[1] : '';
+};
+
+const FREQUENCY_OPTIONS = [
+  { value: '', label: 'Select frequency' },
+  { value: 'Once daily', label: 'Once daily (OD)' },
+  { value: 'Twice daily', label: 'Twice daily (BD)' },
+  { value: 'Three times daily', label: 'Three times daily (TDS)' },
+  { value: 'Four times daily', label: 'Four times daily (QDS)' },
+  { value: 'Every 4 hours', label: 'Every 4 hours' },
+  { value: 'Every 6 hours', label: 'Every 6 hours' },
+  { value: 'Every 8 hours', label: 'Every 8 hours' },
+  { value: 'Every 12 hours', label: 'Every 12 hours' },
+  { value: 'As needed', label: 'As needed (PRN)' },
+  { value: 'At bedtime', label: 'At bedtime (HS)' },
+  { value: 'On alternate days', label: 'On alternate days' },
+  { value: 'Weekly', label: 'Weekly' },
+];
+
+const MEAL_TIMING_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: 'Before meals', label: 'Before meals' },
+  { value: 'After meals', label: 'After meals' },
+  { value: 'With meals', label: 'With meals' },
+  { value: 'On empty stomach', label: 'On empty stomach' },
+  { value: 'Independent of meals', label: 'Independent of meals' },
+];
 
 export interface PrescriptionFormProps {
   open: boolean;
   saving: boolean;
   inventory: InventoryOption[];
+  clinics: ClinicOption[];
   initialPatientId?: number | null;
   initialAppointmentId?: number | null;
+  initialPrescription?: any | null; // DoctorPrescription for editing
   onClose: () => void;
   onSubmit: (payload: CreatePrescriptionPayload) => Promise<void> | void;
 }
@@ -32,29 +207,60 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
   open,
   saving,
   inventory,
+  clinics,
   initialPatientId,
   initialAppointmentId,
+  initialPrescription,
   onClose,
   onSubmit,
 }) => {
   const [patientId, setPatientId] = useState('');
   const [appointmentId, setAppointmentId] = useState('');
+  const [clinicId, setClinicId] = useState('');
   const [prescriptionDate, setPrescriptionDate] = useState('');
   const [notes, setNotes] = useState('');
   const [instructions, setInstructions] = useState('');
   const [items, setItems] = useState<ItemRow[]>([
-    { inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '' },
+    { inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '', meal_timing: '' },
   ]);
 
   useEffect(() => {
     if (!open) return;
-    setPatientId(initialPatientId ? String(initialPatientId) : '');
-    setAppointmentId(initialAppointmentId ? String(initialAppointmentId) : '');
-    setPrescriptionDate(new Date().toISOString().slice(0, 10));
-    setNotes('');
-    setInstructions('');
-    setItems([{ inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '' }]);
-  }, [open, initialPatientId, initialAppointmentId]);
+    
+    if (initialPrescription) {
+      // Editing existing prescription
+      setPatientId(String(initialPrescription.patient_id));
+      setAppointmentId(''); // Appointment ID not editable in updates
+      setClinicId(initialPrescription.clinic_id ? String(initialPrescription.clinic_id) : '');
+      setPrescriptionDate(initialPrescription.prescription_date);
+      setNotes(initialPrescription.notes || '');
+      setInstructions(initialPrescription.instructions || '');
+      
+      // Convert prescription items to form items
+      const formItems = initialPrescription.items?.map((item: any) => ({
+        inventory_item_id: String(item.inventory_item_id),
+        quantity: String(item.quantity),
+        dosage: item.dosage || '',
+        frequency: item.frequency || '',
+        meal_timing: item.meal_timing || '',
+        duration_days: item.duration_days ? String(item.duration_days) : '',
+        instructions: item.instructions || '',
+      })) || [];
+      
+      setItems(formItems.length > 0 ? formItems : [
+        { inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '', meal_timing: '' }
+      ]);
+    } else {
+      // Creating new prescription
+      setPatientId(initialPatientId ? String(initialPatientId) : '');
+      setAppointmentId(initialAppointmentId ? String(initialAppointmentId) : '');
+      setClinicId('');
+      setPrescriptionDate(new Date().toISOString().slice(0, 10));
+      setNotes('');
+      setInstructions('');
+      setItems([{ inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '', meal_timing: '' }]);
+    }
+  }, [open, initialPatientId, initialAppointmentId, initialPrescription]);
 
   const inventoryMap = useMemo(() => {
     const map = new Map<number, InventoryOption>();
@@ -69,7 +275,21 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '' }]);
+    setItems((prev) => [...prev, { inventory_item_id: '', quantity: '1', dosage: '', frequency: '', duration_days: '', instructions: '', meal_timing: '' }]);
+  };
+
+  // Handle medicine selection with auto-dosage extraction
+  const handleMedicineChange = (index: number, medicineId: string) => {
+    const selectedMedicine = inventoryMap.get(Number(medicineId));
+    const autoDosage = selectedMedicine ? extractDosageFromName(selectedMedicine.name) : '';
+    
+    updateItem(index, { 
+      inventory_item_id: medicineId,
+      dosage: autoDosage,
+      // Reset frequency and meal timing when changing medicine
+      frequency: '',
+      meal_timing: ''
+    });
   };
 
   const removeItem = (index: number) => {
@@ -101,6 +321,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
           quantity,
           dosage: row.dosage.trim() === '' ? null : row.dosage.trim(),
           frequency: row.frequency.trim() === '' ? null : row.frequency.trim(),
+          meal_timing: row.meal_timing.trim() === '' ? null : row.meal_timing.trim(),
           duration_days: durationDays,
           instructions: row.instructions.trim() === '' ? null : row.instructions.trim(),
         };
@@ -112,6 +333,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
     const payload: CreatePrescriptionPayload = {
       patient_id: pid,
       appointment_id: Number.isFinite(apptIdRaw as any) ? (apptIdRaw as number) : null,
+      clinic_id: clinicId.trim() === '' ? null : Number(clinicId),
       prescription_date: prescriptionDate,
       notes: notes.trim() === '' ? null : notes.trim(),
       instructions: instructions.trim() === '' ? null : instructions.trim(),
@@ -125,7 +347,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Create Prescription</h2>
+          <h2 className="text-2xl font-bold">{initialPrescription ? 'Update Prescription' : 'Create Prescription'}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -138,7 +360,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
         </div>
 
         <form onSubmit={submit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Patient ID *</label>
               <input
@@ -146,17 +368,34 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
                 required
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                readOnly={!!initialPatientId}
+                className={`w-full px-3 py-2 border rounded-lg ${initialPatientId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment ID</label>
               <input
                 type="number"
                 value={appointmentId}
                 onChange={(e) => setAppointmentId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                readOnly={!!initialAppointmentId}
+                className={`w-full px-3 py-2 border rounded-lg ${initialAppointmentId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assign to Clinic</label>
+              <select
+                value={clinicId}
+                onChange={(e) => setClinicId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="">-- No Clinic --</option>
+                {clinics.map((clinic) => (
+                  <option key={clinic.id} value={String(clinic.id)}>
+                    {clinic.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Prescription Date *</label>
@@ -210,22 +449,15 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
 
                 return (
                   <div key={index} className="border rounded-lg p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-8 gap-3">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Medicine *</label>
-                        <select
+                        <MedicineSelect
                           value={row.inventory_item_id}
-                          onChange={(e) => updateItem(index, { inventory_item_id: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-lg"
+                          onChange={(val) => handleMedicineChange(index, val)}
+                          options={inventory}
                           required
-                        >
-                          <option value="">Select medicine</option>
-                          {inventory.map((item) => (
-                            <option key={item.id} value={String(item.id)}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
+                        />
                         {selected ? (
                           <div className="text-xs text-gray-500 mt-1">
                             {(selected.generic_name || '').trim() !== '' ? selected.generic_name : selected.brand_name}
@@ -257,14 +489,19 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                        <input
-                          type="text"
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Frequency *</label>
+                        <select
                           value={row.frequency}
                           onChange={(e) => updateItem(index, { frequency: e.target.value })}
                           className="w-full px-3 py-2 border rounded-lg"
-                          placeholder="e.g. 2x/day"
-                        />
+                          required
+                        >
+                          {FREQUENCY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
@@ -279,7 +516,22 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
                         />
                       </div>
 
-                      <div className="md:col-span-5">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Meal Timing</label>
+                        <select
+                          value={row.meal_timing}
+                          onChange={(e) => updateItem(index, { meal_timing: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        >
+                          {MEAL_TIMING_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Item Instructions</label>
                         <input
                           type="text"
@@ -289,7 +541,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
                         />
                       </div>
 
-                      <div className="md:col-span-1 flex items-end">
+                      <div className="md:col-span-2 flex items-end">
                         <button
                           type="button"
                           onClick={() => removeItem(index)}
@@ -311,7 +563,7 @@ export const PrescriptionForm: React.FC<PrescriptionFormProps> = ({
             disabled={saving}
             className="bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-full transition duration-300"
           >
-            {saving ? 'Creating...' : 'Create Prescription'}
+            {saving ? (initialPrescription ? 'Updating...' : 'Creating...') : (initialPrescription ? 'Update Prescription' : 'Create Prescription')}
           </button>
         </form>
       </div>

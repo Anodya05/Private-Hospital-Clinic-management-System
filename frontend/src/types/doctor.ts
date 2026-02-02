@@ -20,6 +20,10 @@ export interface DoctorAppointment {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -48,6 +52,10 @@ export interface DoctorTeleconsultation {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -108,6 +116,10 @@ export interface VitalSign {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -183,6 +195,10 @@ export interface Diagnosis {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   created_at?: string;
   updated_at?: string;
@@ -230,6 +246,10 @@ export interface DoctorPrescription {
     first_name?: string;
     last_name?: string;
     email?: string;
+    patient_profile?: {
+      phone?: string | null;
+      guardian_phone?: string | null;
+    } | null;
   } | null;
   items?: DoctorPrescriptionItem[];
   created_at?: string;
@@ -243,6 +263,7 @@ export interface DoctorPrescriptionItem {
   quantity: number;
   dosage: string | null;
   frequency: string | null;
+  meal_timing: string | null;
   duration_days: number | null;
   instructions: string | null;
   unit_price: string;
@@ -265,6 +286,7 @@ export interface DoctorPrescriptionsResponse {
 export interface CreatePrescriptionPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   prescription_date: string;
   notes?: string | null;
   instructions?: string | null;
@@ -273,6 +295,7 @@ export interface CreatePrescriptionPayload {
     quantity: number;
     dosage?: string | null;
     frequency?: string | null;
+    meal_timing?: string | null;
     duration_days?: number | null;
     instructions?: string | null;
   }>;
@@ -331,6 +354,7 @@ export interface LabOrdersAndResultsResponse {
 export interface CreateLabOrderPayload {
   patient_id: number;
   appointment_id?: number | null;
+  clinic_id?: number | null;
   test_type: string;
   test_description?: string | null;
   order_date: string;
@@ -389,11 +413,35 @@ export interface CreateReferralPayload {
   appointment_date?: string | null;
 }
 
+export interface Clinic {
+  id: number;
+  name: string;
+  location?: string | null;
+  department_type?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClinicsResponse {
+  data: Clinic[];
+}
+
+export interface CreateClinicReferralPayload {
+  patient_id: number;
+  clinic_id: number;
+  reason: string;
+  clinical_summary?: string | null;
+  notes?: string | null;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  preferred_appointment_date?: string | null;
+}
+
 export interface DoctorInventoryItem {
   id: number;
   name: string;
   generic_name?: string | null;
   brand_name?: string | null;
+  category?: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -407,4 +455,100 @@ export interface CdsWarning {
   type: 'drug_interaction' | 'allergy' | 'duplicate_medication' | 'duplicate_diagnosis';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
+}
+
+export interface PatientRecord {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  patient_profile?: {
+    phone?: string;
+    date_of_birth?: string;
+    gender?: string;
+    address?: string;
+    blood_type?: string;
+    city?: string;
+    state?: string;
+    guardian_name?: string;
+    guardian_phone?: string;
+    emergency_contact?: string;
+    allergies?: string;
+    medical_conditions?: string;
+  } | null;
+  prescriptions?: Array<{
+    id: number;
+    medication_name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions?: string;
+    status: string;
+    prescribed_date: string;
+    doctor_name?: string;
+  }>;
+  clinic_referrals?: Array<{
+    id: number;
+    clinic_name: string;
+    clinic_location?: string;
+    reason: string;
+    priority: string;
+    status: string;
+    preferred_appointment_date?: string;
+    created_at: string;
+  }>;
+}
+
+// Daily Summary Types
+export interface DailySummaryStats {
+  total_appointments: number;
+  completed_consultations: number;
+  pending_appointments: number;
+  cancelled_appointments: number;
+  prescriptions_issued: number;
+  lab_orders_placed: number;
+  referrals_made: number;
+  in_person_consultations: number;
+  telemedicine_consultations: number;
+}
+
+export interface ConsultedPatient {
+  appointment_id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_email: string | null;
+  patient_phone: string;
+  patient_gender: string;
+  appointment_time: string;
+  consultation_type: 'in_person' | 'telemedicine';
+  reason: string | null;
+  notes: string | null;
+  prescriptions_count: number;
+  lab_orders_count: number;
+  referrals_count: number;
+  prescriptions: Array<{
+    id: number;
+    prescription_number: string;
+    items_count: number;
+    status: string;
+  }>;
+  lab_orders: Array<{
+    id: number;
+    test_type: string;
+    status: string;
+  }>;
+  referrals: Array<{
+    id: number;
+    clinic_name: string;
+    priority: string;
+    status: string;
+  }>;
+}
+
+export interface DailySummaryResponse {
+  date: string;
+  doctor_id: number;
+  doctor_name: string;
+  stats: DailySummaryStats;
+  consulted_patients: ConsultedPatient[];
 }
