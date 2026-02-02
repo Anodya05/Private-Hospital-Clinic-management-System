@@ -75,7 +75,16 @@ class DoctorPrescriptionController extends Controller
 
             DB::commit();
 
-            return response()->json($prescription->load(['patient', 'doctor', 'clinic', 'items.inventoryItem']), 201);
+            return response()->json(
+                $prescription->load([
+                    'patient:id,first_name,last_name,email',
+                    'patient.patientProfile:user_id,phone,guardian_phone',
+                    'doctor',
+                    'clinic',
+                    'items.inventoryItem',
+                ]),
+                201
+            );
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Failed to create prescription: ' . $e->getMessage()], 500);
@@ -88,7 +97,12 @@ class DoctorPrescriptionController extends Controller
 
         $prescription = Prescription::query()
             ->where('doctor_id', $doctor->id)
-            ->with(['patient', 'doctor', 'items.inventoryItem'])
+            ->with([
+                'patient:id,first_name,last_name,email',
+                'patient.patientProfile:user_id,phone,guardian_phone',
+                'doctor',
+                'items.inventoryItem',
+            ])
             ->findOrFail($id);
 
         return response()->json($prescription);
@@ -100,7 +114,10 @@ class DoctorPrescriptionController extends Controller
 
         $query = Prescription::query()
             ->where('doctor_id', $doctor->id)
-            ->with(['patient:id,first_name,last_name,email']);
+            ->with([
+                'patient:id,first_name,last_name,email',
+                'patient.patientProfile:user_id,phone,guardian_phone',
+            ]);
 
         if ($request->has('patient_id')) {
             $query->where('patient_id', $request->patient_id);
@@ -172,7 +189,15 @@ class DoctorPrescriptionController extends Controller
 
             DB::commit();
 
-            return response()->json($prescription->fresh()->load(['patient', 'doctor', 'clinic', 'items.inventoryItem']));
+            return response()->json(
+                $prescription->fresh()->load([
+                    'patient:id,first_name,last_name,email',
+                    'patient.patientProfile:user_id,phone,guardian_phone',
+                    'doctor',
+                    'clinic',
+                    'items.inventoryItem',
+                ])
+            );
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Failed to update prescription: ' . $e->getMessage()], 500);
