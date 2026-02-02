@@ -16,6 +16,7 @@ use App\Models\PatientProfile;
 use App\Models\Prescription;
 use App\Models\ClinicReferral;
 use App\Models\Clinic;
+use App\Models\Prescription;
 
 class User extends Authenticatable
 {
@@ -141,6 +142,14 @@ class User extends Authenticatable
     // ==========================================
     // ACCESSORS
     // ==========================================
+
+    /**
+     * Get prescriptions where the user is the patient.
+     */
+    public function prescriptionsAsPatient(): HasMany
+    {
+        return $this->hasMany(Prescription::class, 'patient_id');
+    }
 
     /**
      * Virtual Attribute: 'name'
