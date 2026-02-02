@@ -38,6 +38,8 @@ use App\Http\Controllers\Api\DoctorReferralController;
 use App\Http\Controllers\Api\DoctorPatientController;
 use App\Http\Controllers\Api\DoctorQueueController;
 use App\Http\Controllers\Api\ClinicController;
+use App\Http\Controllers\Api\PharmacistPatientController;
+use App\Http\Controllers\Api\PharmacistReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -117,6 +119,18 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->gr
     // Returns
     Route::post('returns', [InventoryController::class, 'processReturn']);
     Route::get('returns', [InventoryController::class, 'getReturns']);
+    
+    // Patients (view basic patient info and medication history)
+    Route::get('patients', [PharmacistPatientController::class, 'index']);
+    Route::get('patients/{id}', [PharmacistPatientController::class, 'show']);
+    Route::get('patients/{id}/medication-history', [PharmacistPatientController::class, 'medicationHistory']);
+    Route::get('patients/{id}/medication-summary', [PharmacistPatientController::class, 'medicationSummary']);
+    
+    // Reports & Analytics
+    Route::get('reports/dispensing', [PharmacistReportController::class, 'dispensingReport']);
+    Route::get('reports/inventory', [PharmacistReportController::class, 'inventoryReport']);
+    Route::get('reports/sales', [PharmacistReportController::class, 'salesReport']);
+    Route::get('reports/patient-activity', [PharmacistReportController::class, 'patientActivityReport']);
     
     // Reports & Audit
     Route::get('reports/inventory', [InventoryController::class, 'inventoryReport']);
@@ -256,6 +270,4 @@ Route::middleware(['auth:sanctum', 'role:doctor'])->prefix('doctor')->group(func
     Route::get('queue/next', [DoctorQueueController::class, 'next']);
     Route::post('queue/call-next', [DoctorQueueController::class, 'callNext']);
     Route::put('queue/{id}/status', [DoctorQueueController::class, 'updateStatus']);
-});
-=======
 });

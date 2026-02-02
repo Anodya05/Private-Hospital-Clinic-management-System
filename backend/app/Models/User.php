@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -12,6 +13,7 @@ use Spatie\Permission\Traits\HasRoles;
 use App\Models\Role;
 use App\Models\PatientProfile;
 use App\Models\Clinic;
+use App\Models\Prescription;
 
 class User extends Authenticatable
 {
@@ -82,6 +84,14 @@ class User extends Authenticatable
     public function clinic(): BelongsTo
     {
         return $this->belongsTo(Clinic::class, 'clinic_id');
+    }
+
+    /**
+     * Get prescriptions where the user is the patient.
+     */
+    public function prescriptionsAsPatient(): HasMany
+    {
+        return $this->hasMany(Prescription::class, 'patient_id');
     }
 
     /**
