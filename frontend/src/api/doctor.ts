@@ -27,9 +27,22 @@ import type {
   ReferralsResponse,
   Referral,
   CreateReferralPayload,
+  ClinicsResponse,
+  CreateClinicReferralPayload,
+  PatientRecord,
+  DailySummaryResponse,
 } from '../types/doctor';
 
 export const doctorApi = {
+  dashboard: {
+    getDailySummary: async (date?: string): Promise<DailySummaryResponse> => {
+      const response = await http.get<DailySummaryResponse>(API_ENDPOINTS.DOCTOR_DAILY_SUMMARY, {
+        params: date ? { date } : undefined,
+      });
+      return response.data;
+    },
+  },
+
   appointments: {
     list: async (params?: { date?: string; status?: string; patient_name?: string }): Promise<DoctorAppointmentsResponse> => {
       const response = await http.get<DoctorAppointmentsResponse>(API_ENDPOINTS.DOCTOR_APPOINTMENTS, { params });
@@ -86,6 +99,13 @@ export const doctorApi = {
   patients: {
     create: async (payload: any): Promise<any> => {
       const response = await http.post<any>(API_ENDPOINTS.DOCTOR_PATIENTS, payload);
+      return response.data;
+    },
+    
+    searchByPhone: async (phoneNumber: string, name?: string): Promise<{ data: PatientRecord | null }> => {
+      const response = await http.get<{ data: PatientRecord | null }>(`${API_ENDPOINTS.PATIENTS}/search`, {
+        params: { phone: phoneNumber, name }
+      });
       return response.data;
     },
   },
@@ -170,6 +190,18 @@ export const doctorApi = {
   inventory: {
     list: async (params?: { search?: string; category?: string; low_stock?: boolean; expiring_soon?: boolean }): Promise<DoctorInventoryResponse> => {
       const response = await http.get<DoctorInventoryResponse>(API_ENDPOINTS.DOCTOR_INVENTORY, { params });
+      return response.data;
+    },
+  },
+
+  clinics: {
+    list: async (): Promise<ClinicsResponse> => {
+      const response = await http.get<ClinicsResponse>(API_ENDPOINTS.CLINICS);
+      return response.data;
+    },
+
+    referPatient: async (payload: CreateClinicReferralPayload): Promise<any> => {
+      const response = await http.post(API_ENDPOINTS.CLINIC_REFERRAL, payload);
       return response.data;
     },
   },
