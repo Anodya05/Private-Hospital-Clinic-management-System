@@ -405,6 +405,7 @@ const PharmacistDashboard: React.FC = () => {
   const [patientModalOpen, setPatientModalOpen] = useState(false);
 
   // Reports state
+  const [reportsLoaded, setReportsLoaded] = useState(false);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [activeReportType, setActiveReportType] = useState<'dispensing' | 'inventory' | 'sales' | 'patient_activity'>('dispensing');
   const [reportDateFrom, setReportDateFrom] = useState(() => {
@@ -467,6 +468,9 @@ const PharmacistDashboard: React.FC = () => {
       }
       if (active === 'returns' && !returnsLoaded && !returnsLoading) {
         await loadReturns();
+      }
+      if (active === 'reports' && !reportsLoaded && !reportsLoading) {
+        await loadReport();
       }
       if (active === 'reports' && !auditLogsLoaded && !auditLogsLoading) {
         await loadAuditLogs();
@@ -911,20 +915,55 @@ const PharmacistDashboard: React.FC = () => {
     setReportsLoading(true);
     setError(null);
     try {
+      console.log(`Loading ${type} report...`);
       if (type === 'dispensing') {
         const resp = await pharmacistApi.reports.dispensing({ from_date: reportDateFrom, to_date: reportDateTo });
-        setDispensingReport(resp);
+        console.log('Dispensing report response:', resp);
+        // Handle both direct response and wrapped response
+        const reportData = resp?.data ?? resp;
+        if (reportData && reportData.summary) {
+          setDispensingReport(reportData);
+        } else {
+          console.warn('Invalid dispensing report structure:', reportData);
+          setError('Invalid report data received');
+        }
       } else if (type === 'inventory') {
         const resp = await pharmacistApi.reports.inventory();
-        setInventoryReport(resp);
+        console.log('Inventory report response:', resp);
+        // Handle both direct response and wrapped response
+        const reportData = resp?.data ?? resp;
+        if (reportData && reportData.summary) {
+          setInventoryReport(reportData);
+        } else {
+          console.warn('Invalid inventory report structure:', reportData);
+          setError('Invalid report data received');
+        }
       } else if (type === 'sales') {
         const resp = await pharmacistApi.reports.sales({ from_date: reportDateFrom, to_date: reportDateTo });
-        setSalesReport(resp);
+        console.log('Sales report response:', resp);
+        // Handle both direct response and wrapped response
+        const reportData = resp?.data ?? resp;
+        if (reportData && reportData.summary) {
+          setSalesReport(reportData);
+        } else {
+          console.warn('Invalid sales report structure:', reportData);
+          setError('Invalid report data received');
+        }
       } else if (type === 'patient_activity') {
         const resp = await pharmacistApi.reports.patientActivity({ from_date: reportDateFrom, to_date: reportDateTo });
-        setPatientActivityReport(resp);
+        console.log('Patient activity report response:', resp);
+        // Handle both direct response and wrapped response
+        const reportData = resp?.data ?? resp;
+        if (reportData && reportData.summary) {
+          setPatientActivityReport(reportData);
+        } else {
+          console.warn('Invalid patient activity report structure:', reportData);
+          setError('Invalid report data received');
+        }
       }
+      setReportsLoaded(true);
     } catch (e: any) {
+      console.error('Error loading report:', e);
       setError(e?.message || 'Failed to load report');
     } finally {
       setReportsLoading(false);
@@ -2395,7 +2434,7 @@ const PharmacistDashboard: React.FC = () => {
                     )}
 
                     {/* Inventory Report */}
-                    {activeReportType === 'inventory' && inventoryReport && (
+                    {activeReportType === 'inventory' && inventoryReport && inventoryReport.summary && (
                       <div className="space-y-6">
                         {/* Summary Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -2405,7 +2444,7 @@ const PharmacistDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-600">Total Items</p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                  {inventoryReport.summary.total_items}
+                                  {inventoryReport.summary.total_items ?? 0}
                                 </p>
                               </div>
                             </div>
@@ -2416,7 +2455,7 @@ const PharmacistDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-600">Total Value</p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                  {currencyFormatter.format(inventoryReport.summary.total_value)}
+                                  {currencyFormatter.format(inventoryReport.summary.total_value ?? 0)}
                                 </p>
                               </div>
                             </div>
@@ -2427,7 +2466,7 @@ const PharmacistDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-600">Low Stock</p>
                                 <p className="text-2xl font-bold text-orange-600">
-                                  {inventoryReport.summary.low_stock_count}
+                                  {inventoryReport.summary.low_stock_count ?? 0}
                                 </p>
                               </div>
                             </div>
@@ -2438,7 +2477,7 @@ const PharmacistDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-600">Expiring Soon</p>
                                 <p className="text-2xl font-bold text-yellow-600">
-                                  {inventoryReport.summary.expiring_soon_count}
+                                  {inventoryReport.summary.expiring_soon_count ?? 0}
                                 </p>
                               </div>
                             </div>
@@ -2449,7 +2488,7 @@ const PharmacistDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-600">Expired</p>
                                 <p className="text-2xl font-bold text-red-600">
-                                  {inventoryReport.summary.expired_count}
+                                  {inventoryReport.summary.expired_count ?? 0}
                                 </p>
                               </div>
                             </div>
@@ -2457,33 +2496,36 @@ const PharmacistDashboard: React.FC = () => {
                         </div>
 
                         {/* Stock Levels */}
+                        {inventoryReport.stock_levels && (
                         <div className="bg-white rounded-lg shadow-lg p-6">
                           <h3 className="text-lg font-semibold text-gray-800 mb-4">Stock Level Distribution</h3>
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div className="text-center p-4 bg-red-50 rounded-lg">
-                              <p className="text-2xl font-bold text-red-600">{inventoryReport.stock_levels.out_of_stock}</p>
+                              <p className="text-2xl font-bold text-red-600">{inventoryReport.stock_levels.out_of_stock ?? 0}</p>
                               <p className="text-sm text-gray-600">Out of Stock</p>
                             </div>
                             <div className="text-center p-4 bg-orange-50 rounded-lg">
-                              <p className="text-2xl font-bold text-orange-600">{inventoryReport.stock_levels.critical}</p>
+                              <p className="text-2xl font-bold text-orange-600">{inventoryReport.stock_levels.critical ?? 0}</p>
                               <p className="text-sm text-gray-600">Critical</p>
                             </div>
                             <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                              <p className="text-2xl font-bold text-yellow-600">{inventoryReport.stock_levels.low}</p>
+                              <p className="text-2xl font-bold text-yellow-600">{inventoryReport.stock_levels.low ?? 0}</p>
                               <p className="text-sm text-gray-600">Low</p>
                             </div>
                             <div className="text-center p-4 bg-green-50 rounded-lg">
-                              <p className="text-2xl font-bold text-green-600">{inventoryReport.stock_levels.adequate}</p>
+                              <p className="text-2xl font-bold text-green-600">{inventoryReport.stock_levels.adequate ?? 0}</p>
                               <p className="text-sm text-gray-600">Adequate</p>
                             </div>
                             <div className="text-center p-4 bg-blue-50 rounded-lg">
-                              <p className="text-2xl font-bold text-blue-600">{inventoryReport.stock_levels.overstocked}</p>
+                              <p className="text-2xl font-bold text-blue-600">{inventoryReport.stock_levels.overstocked ?? 0}</p>
                               <p className="text-sm text-gray-600">Overstocked</p>
                             </div>
                           </div>
                         </div>
+                        )}
 
                         {/* Category Breakdown */}
+                        {inventoryReport.category_breakdown && inventoryReport.category_breakdown.length > 0 && (
                         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                           <div className="px-6 py-4 border-b">
                             <h3 className="text-lg font-semibold text-gray-800">Category Breakdown</h3>
@@ -2521,6 +2563,7 @@ const PharmacistDashboard: React.FC = () => {
                             </table>
                           </div>
                         </div>
+                        )}
                       </div>
                     )}
 

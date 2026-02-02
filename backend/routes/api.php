@@ -132,8 +132,7 @@ Route::middleware(['auth:sanctum', 'role:pharmacist'])->prefix('pharmacist')->gr
     Route::get('reports/sales', [PharmacistReportController::class, 'salesReport']);
     Route::get('reports/patient-activity', [PharmacistReportController::class, 'patientActivityReport']);
     
-    // Reports & Audit
-    Route::get('reports/inventory', [InventoryController::class, 'inventoryReport']);
+    // Storage Report & Audit
     Route::get('reports/storage', [InventoryController::class, 'storageReport']);
     Route::get('audit-logs', [InventoryController::class, 'auditLogs']);
 });
