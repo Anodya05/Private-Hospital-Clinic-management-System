@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\PatientProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -62,23 +64,58 @@ class DoctorPatientController extends Controller
             $userData['username'] = $username;
         }
 
-        // Optional profile fields
-        foreach (['date_of_birth', 'phone', 'gender', 'blood_type', 'address', 'city', 'state', 'postal_code'] as $f) {
-            if (isset($validated[$f])) {
-                $userData[$f] = $validated[$f];
+        $createdUser = null;
+
+        DB::transaction(function () use (&$createdUser, $userData, $validated, $password) {
+            $createdUser = User::create($userData);
+
+            SpatieRole::findOrCreate('patient', 'web');
+            $createdUser->assignRole('patient');
+
+            $driver = DB::connection()->getDriverName();
+            $lastPatientQuery = PatientProfile::query()->whereNotNull('patient_id');
+
+            if ($driver === 'pgsql') {
+                $lastPatientQuery
+                    ->whereRaw("patient_id ~ '^[0-9]+$")
+                    ->orderByRaw('patient_id::int DESC');
+            } else {
+                $lastPatientQuery->orderByRaw('CAST(patient_id AS UNSIGNED) DESC');
             }
+
+            $lastPatient = $lastPatientQuery->lockForUpdate()->first();
+            $nextPatientId = $lastPatient && $lastPatient->patient_id
+                ? ((int) $lastPatient->patient_id) + 1
+                : 1;
+
+            $patientId = str_pad((string) $nextPatientId, 3, '0', STR_PAD_LEFT);
+
+            $profileData = array_filter([
+                'patient_id' => $patientId,
+                'phone' => $validated['phone'] ?? null,
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'gender' => $validated['gender'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'blood_type' => $validated['blood_type'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'state' => $validated['state'] ?? null,
+                'postal_code' => $validated['postal_code'] ?? null,
+            ], static fn ($value) => $value !== null);
+
+            PatientProfile::updateOrCreate(
+                ['user_id' => $createdUser->id],
+                $profileData
+            );
+        });
+
+        $createdUser = $createdUser?->fresh(['patientProfile']);
+        if ($createdUser) {
+            $createdUser->makeHidden(['password']);
         }
 
-        $user = User::create($userData);
-
-        // Assign patient role
-        SpatieRole::findOrCreate('patient', 'web');
-        $user->assignRole('patient');
-
-        // Optionally associate with creating doctor (if schema has doctor_id or patient_doctor relation not present by default)
-        // For now, return created user (without password)
-        $user->makeHidden(['password']);
-
-        return response()->json(['user' => $user, 'generated_password' => $password], 201);
+        return response()->json([
+            'user' => $createdUser,
+            'generated_password' => $password,
+        ], 201);
     }
 }

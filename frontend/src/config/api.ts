@@ -1,4 +1,4 @@
-// API Configuration
+﻿// API Configuration
 declare const process: {
   env: {
     REACT_APP_API_URL?: string;
@@ -48,22 +48,26 @@ export const API_ENDPOINTS = {
   PRESCRIPTION_PROCESS: (id: string) => `${API_BASE_URL}/api/prescriptions/${id}/process`,
 
   // Pharmacist specific endpoints
+  PHARMACIST_DASHBOARD: `${API_BASE_URL}/api/pharmacist/dashboard`,
   PHARMACIST_PRESCRIPTIONS: `${API_BASE_URL}/api/pharmacist/prescriptions`,
   PHARMACIST_PRESCRIPTION_SHOW: (id: string) => `${API_BASE_URL}/api/pharmacist/prescriptions/${id}`,
   PHARMACIST_PRESCRIPTION_INTERACTION_CHECK: (id: string) => `${API_BASE_URL}/api/pharmacist/prescriptions/${id}/interaction-check`,
+  PHARMACIST_PRESCRIPTION_PROCESS: (id: string) => `${API_BASE_URL}/api/pharmacist/prescriptions/${id}/process`,
   PHARMACIST_PRESCRIPTION_DISPENSE: (id: string) => `${API_BASE_URL}/api/pharmacist/prescriptions/${id}/dispense`,
   PHARMACIST_INVENTORY: `${API_BASE_URL}/api/pharmacist/inventory`,
-  PHARMACIST_INVENTORY_UPDATE: `${API_BASE_URL}/api/pharmacist/inventory/update`,
   PHARMACIST_INVENTORY_LOW_STOCK: `${API_BASE_URL}/api/pharmacist/inventory/low-stock`,
   PHARMACIST_INVENTORY_EXPIRING_SOON: `${API_BASE_URL}/api/pharmacist/inventory/expiring-soon`,
   PHARMACIST_INVENTORY_STATS: `${API_BASE_URL}/api/pharmacist/inventory/stats`,
-  PHARMACIST_PURCHASE_REQUEST: `${API_BASE_URL}/api/pharmacist/purchase-request`,
+  PHARMACIST_INVENTORY_UPDATE: `${API_BASE_URL}/api/pharmacist/inventory/update`,
+  PHARMACIST_PURCHASE_REQUEST: `${API_BASE_URL}/api/pharmacist/purchase-requests`,
   PHARMACIST_CONTROLLED_DRUGS: `${API_BASE_URL}/api/pharmacist/controlled-drugs`,
   PHARMACIST_CONTROLLED_DRUGS_LOG: `${API_BASE_URL}/api/pharmacist/controlled-drugs/log`,
   PHARMACIST_LABELS_GENERATE: `${API_BASE_URL}/api/pharmacist/labels/generate`,
   PHARMACIST_LABELS_PRINT: `${API_BASE_URL}/api/pharmacist/labels/print`,
   PHARMACIST_RETURNS: `${API_BASE_URL}/api/pharmacist/returns`,
   PHARMACIST_REPORTS_INVENTORY: `${API_BASE_URL}/api/pharmacist/reports/inventory`,
+  PHARMACIST_REPORTS_DISPENSING: `${API_BASE_URL}/api/pharmacist/reports/dispensing`,
+  PHARMACIST_REPORTS_CONTROLLED_DRUGS: `${API_BASE_URL}/api/pharmacist/reports/controlled-drugs`,
   PHARMACIST_REPORTS_STORAGE: `${API_BASE_URL}/api/pharmacist/reports/storage`,
   PHARMACIST_REPORTS_DISPENSING: `${API_BASE_URL}/api/pharmacist/reports/dispensing`,
   PHARMACIST_REPORTS_SALES: `${API_BASE_URL}/api/pharmacist/reports/sales`,
@@ -73,6 +77,9 @@ export const API_ENDPOINTS = {
   PHARMACIST_PATIENT_MEDICATION_HISTORY: (id: string) => `${API_BASE_URL}/api/pharmacist/patients/${id}/medication-history`,
   PHARMACIST_PATIENT_MEDICATION_SUMMARY: (id: string) => `${API_BASE_URL}/api/pharmacist/patients/${id}/medication-summary`,
   PHARMACIST_AUDIT_LOGS: `${API_BASE_URL}/api/pharmacist/audit-logs`,
+
+  // Inventory
+  INVENTORY: `${API_BASE_URL}/api/inventory`,
 
   // Suppliers
   SUPPLIERS: `${API_BASE_URL}/api/suppliers`,
@@ -101,6 +108,9 @@ export const API_ENDPOINTS = {
   DOCTOR_LAB_RESULT_REVIEW: (id: string) => `${API_BASE_URL}/api/doctor/labs/results/${id}/review`,
   DOCTOR_REFERRALS: `${API_BASE_URL}/api/doctor/referrals`,
 
+  // Doctor Dashboard
+  DOCTOR_DAILY_SUMMARY: `${API_BASE_URL}/api/doctor/dashboard/daily-summary`,
+
   // Doctor Queue
   DOCTOR_QUEUE: `${API_BASE_URL}/api/doctor/queue`,
   DOCTOR_QUEUE_NEXT: `${API_BASE_URL}/api/doctor/queue/next`,
@@ -109,6 +119,21 @@ export const API_ENDPOINTS = {
 
   // Clinics
   CLINICS: `${API_BASE_URL}/api/clinics`,
+  CLINIC_REFERRAL: `${API_BASE_URL}/api/doctor/clinic-referrals`,
+
+  // Patients
+  PATIENTS: `${API_BASE_URL}/api/patients`,
+
+  // AI / GPT-5.2-Codex Integration
+  AI_CHAT: `${API_BASE_URL}/api/ai/chat`,
+  AI_MEDICAL_ANALYSIS: `${API_BASE_URL}/api/ai/medical/analysis`,
+  AI_DRUG_INTERACTIONS: `${API_BASE_URL}/api/ai/medical/drug-interactions`,
+  AI_DIAGNOSTICS: `${API_BASE_URL}/api/ai/medical/diagnostics`,
+  AI_PRESCRIPTION_REVIEW: `${API_BASE_URL}/api/ai/medical/prescription-review`,
+  AI_PATIENT_INSIGHTS: `${API_BASE_URL}/api/ai/patient/insights`,
+  AI_DOCUMENT_GENERATION: `${API_BASE_URL}/api/ai/documents/generate`,
+  AI_MODEL_STATUS: `${API_BASE_URL}/api/ai/status`,
+  AI_FEATURES: `${API_BASE_URL}/api/ai/features`,
 };
 
 export default API_BASE_URL;
